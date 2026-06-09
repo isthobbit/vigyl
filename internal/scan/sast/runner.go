@@ -83,7 +83,7 @@ func Run(scanPath string, verbose bool, timeout time.Duration, excludePaths []st
 			return nil, fmt.Errorf("semgrep timed out after %s", timeout)
 		}
 		exitCode := cmd.ProcessState.ExitCode()
-		if exitCode != 1 {
+		if exitCode != 1 && exitCode != 2 {
 			return nil, fmt.Errorf("semgrep error (exit %d): %w\n%s", exitCode, runErr, stderr.String())
 		}
 	}
