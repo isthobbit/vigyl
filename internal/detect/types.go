@@ -61,6 +61,8 @@ var knownLanguages = []languageDef{
 	{Name: "Scala", Extensions: []string{".scala"}},
 	{Name: "Elixir", Extensions: []string{".ex", ".exs"}},
 	{Name: "Shell", Extensions: []string{".sh", ".bash", ".zsh"}},
+	{Name: "HTML", Extensions: []string{".html", ".htm"}},
+	{Name: "CSS", Extensions: []string{".css", ".scss", ".sass", ".less"}},
 }
 
 // knownFrameworks is the list of frameworks jensec can detect.
