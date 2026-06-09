@@ -1,0 +1,67 @@
+name: Security Scan (jensec)
+
+on:
+  push:
+    branches: ["main", "master", "develop"]
+  pull_request:
+    branches: ["main", "master", "develop"]
+  # Allow manual runs from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  security-scan:
+    name: jensec · KINGA Security Scan
+    runs-on: ubuntu-latest
+
+    permissions:
+      # Needed to upload SARIF results to GitHub Code Scanning (future)
+      security-events: write
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      # ── Install dependencies ──────────────────────────────────────────────
+
+      - name: Install Gitleaks
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/gitleaks/gitleaks/master/scripts/install.sh \
+            | sh -s -- -b /usr/local/bin
+          gitleaks version
+
+      - name: Install Semgrep
+        run: |
+          pip3 install semgrep --quiet
+          semgrep --version
+
+      # ── Build jensec from source ─────────────────────────────────────────
+      - name: Build jensec
+        run: |
+          go build -o /usr/local/bin/jensec ./cmd/jensec
+          jensec --version
+
+      # ── Run scans ─────────────────────────────────────────────────────────
+
+      - name: Run secrets scan
+        run: jensec scan secrets . --fail-on high --json --output secrets-report.json
+
+      - name: Run SAST scan
+        run: jensec scan sast . --fail-on high --json --output sast-report.json
+
+      # ── Upload reports as artifacts ───────────────────────────────────────
+
+      - name: Upload scan reports
+        if: always() # upload even if a scan step fails
+        uses: actions/upload-artifact@v4
+        with:
+          name: jensec-reports
+          path: |
+            secrets-report.json
+            sast-report.json
+          retention-days: 30

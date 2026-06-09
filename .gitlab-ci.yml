@@ -1,0 +1,53 @@
+# jensec · KINGA Security Scan — GitLab CI
+#
+# Add this file to your repo as .gitlab-ci.yml
+# or include it from your existing pipeline:
+#
+#   include:
+#     - project: 'isthobbit/kinga'
+#       file: '.gitlab-ci.yml'
+
+stages:
+  - security
+
+variables:
+  JENGSEC_FAIL_ON: "high"   # critical | high | medium | low | none
+  GO_VERSION: "1.22"
+
+security-scan:
+  stage: security
+  image: golang:1.22-bookworm
+
+  before_script:
+    # Install Gitleaks
+    - curl -sSfL https://raw.githubusercontent.com/gitleaks/gitleaks/master/scripts/install.sh
+        | sh -s -- -b /usr/local/bin
+    - gitleaks version
+
+    # Install Semgrep
+    - pip3 install semgrep --quiet
+    - semgrep --version
+
+    # Install jensec
+    - go install github.com/isthobbit/kinga/cmd/jensec@latest
+
+  script:
+    - jensec scan secrets . --fail-on $JENGSEC_FAIL_ON --json --output secrets-report.json
+    - jensec scan sast    . --fail-on $JENGSEC_FAIL_ON --json --output sast-report.json
+
+  artifacts:
+    name: "jensec-reports-$CI_COMMIT_SHORT_SHA"
+    when: always   # upload reports even when scan finds issues
+    expire_in: 30 days
+    paths:
+      - secrets-report.json
+      - sast-report.json
+
+  rules:
+    # Run on pushes to main branches
+    - if: '$CI_COMMIT_BRANCH =~ /^(main|master|develop)$/'
+    # Run on merge requests
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    # Allow manual trigger
+    - when: manual
+      allow_failure: true

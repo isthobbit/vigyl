@@ -1,0 +1,29 @@
+# Binaries
+jensec
+kinga
+*.exe
+*.out
+
+# Build output
+/dist/
+/bin/
+
+# Scan history and config
+.kinga/
+*.db
+
+# Go
+vendor/
+*.test
+*.prof
+coverage.out
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
