@@ -1,5 +1,6 @@
 # Binaries
-jensec
+/jensec
+/jensec.exe
 kinga
 *.exe
 *.out
