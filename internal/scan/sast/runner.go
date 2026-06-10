@@ -69,6 +69,7 @@ func Run(scanPath string, verbose bool, timeout time.Duration, excludePaths []st
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, semgrepPath, args...)
+	cmd.Dir = absPath
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
