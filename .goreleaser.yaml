@@ -1,0 +1,54 @@
+version: 2
+
+project_name: jensec
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: jensec
+    main: ./cmd/jensec
+    binary: jensec
+    ldflags:
+      - -X github.com/isthobbit/kinga/pkg/version.Version={{.Version}}
+      - -X github.com/isthobbit/kinga/pkg/version.Commit={{.Commit}}
+      - -X github.com/isthobbit/kinga/pkg/version.BuildDate={{.Date}}
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - id: jensec
+    name_template: "jensec_{{.Version}}_{{.Os}}_{{.Arch}}"
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - README.md
+      - LICENSE
+      - CHANGELOG.md
+
+checksum:
+  name_template: "jensec_{{.Version}}_checksums.txt"
+
+release:
+  github:
+    owner: isthobbit
+    name: kinga
+  name_template: "v{{.Version}}"
+  draft: false
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
