@@ -1,26 +1,70 @@
-# jensec
+# jensec · by KINGA
+
+![Build](https://github.com/isthobbit/kinga/actions/workflows/jensec.yml/badge.svg)
+![Release](https://img.shields.io/github/v/release/isthobbit/kinga)
+![License](https://img.shields.io/github/license/isthobbit/kinga)
+![Go](https://img.shields.io/badge/go-1.22+-blue)
 
 ```
 ╭─────────────────────────────────────────╮
 │  jensec · by KINGA                      │
 │  Offline-first DevSecOps scanner        │
-│  Built in Kenya for the world           │
 ╰─────────────────────────────────────────╯
 ```
 
-**jensec** is a command-line security scanner for developers. It detects leaked secrets and code vulnerabilities in your project — no cloud account, no sign-up, no data leaving your machine.
+**jensec** is an open-source DevSecOps CLI tool that detects leaked secrets, code vulnerabilities (SAST), and dependency CVEs — all from your terminal, with no cloud account, no sign-up, and no data leaving your machine.
 
-Powered by [Gitleaks](https://github.com/gitleaks/gitleaks) (secrets) and [Semgrep](https://semgrep.dev) (SAST), with a unified CLI and local scan history so you can track progress over time.
+Powered by [Gitleaks](https://github.com/gitleaks/gitleaks) (secrets), [Semgrep](https://semgrep.dev) (SAST), and a local SQLite scan history so you can track your security posture over time.
 
 ---
 
 ## Features
 
-- **Secrets detection** — API keys, tokens, passwords committed to source
+- **Secrets detection** — API keys, tokens, and passwords committed to source code
 - **SAST** — common vulnerability patterns across 15+ languages
-- **Local history** — every scan is stored in a local SQLite database; no cloud required
+- **Dependency scanning** — CVE detection in open source dependencies *(coming v0.2)*
+- **Correlation engine** — links findings across scanners into a unified risk score *(coming v0.2)*
+- **Local history** — every scan stored in a local SQLite database; no cloud required
 - **Developer-friendly output** — coloured terminal output or `--json` for CI pipelines
 - **Configurable** — YAML config file, environment variables, or CLI flags
+
+---
+
+## Installation
+
+### Download a binary (recommended)
+
+Download the latest release for your platform from the [Releases page](https://github.com/isthobbit/kinga/releases).
+
+**Linux (amd64)**
+```bash
+curl -L https://github.com/isthobbit/kinga/releases/latest/download/jensec_linux_amd64.tar.gz | tar xz
+sudo mv jensec /usr/local/bin/
+```
+
+**macOS (Apple Silicon)**
+```bash
+curl -L https://github.com/isthobbit/kinga/releases/latest/download/jensec_darwin_arm64.tar.gz | tar xz
+sudo mv jensec /usr/local/bin/
+```
+
+**macOS (Intel)**
+```bash
+curl -L https://github.com/isthobbit/kinga/releases/latest/download/jensec_darwin_amd64.tar.gz | tar xz
+sudo mv jensec /usr/local/bin/
+```
+
+**Windows**
+
+Download `jensec_windows_amd64.zip` from the [Releases page](https://github.com/isthobbit/kinga/releases), extract, and add the binary to your PATH.
+
+### Install with Go
+
+```bash
+go install github.com/isthobbit/kinga/cmd/jensec@latest
+```
+
+Requires Go 1.22+. The binary is placed in `$GOPATH/bin` (usually `~/go/bin`).
 
 ---
 
@@ -45,15 +89,7 @@ pip install semgrep
 brew install semgrep
 ```
 
----
-
-## Installation
-
-```bash
-go install github.com/isthobbit/kinga/cmd/jensec@latest
-```
-
-Requires Go 1.22+. The binary is placed in `$GOPATH/bin` (usually `~/go/bin`).
+> jensec will prompt you to install missing tools automatically on first run.
 
 ---
 
@@ -61,7 +97,7 @@ Requires Go 1.22+. The binary is placed in `$GOPATH/bin` (usually `~/go/bin`).
 
 ```bash
 # Scan the current directory — runs both secrets + SAST
-jensec scan all
+jensec scan all .
 
 # Scan a specific path
 jensec scan all ./my-project
@@ -75,7 +111,7 @@ jensec scan sast ./my-project
 
 ---
 
-## CI / CD integration
+## CI/CD integration
 
 Use `--fail-on` to control which severity level causes a non-zero exit code:
 
@@ -113,6 +149,18 @@ jensec scan all --json --output results.json
 
 - name: Security scan
   run: jensec scan all --fail-on high --json --output security-report.json
+```
+
+The repository ships with a ready-to-use workflow in `.github/workflows/jensec.yml` that runs on every push and pull request to `main`, `master`, or `develop`.
+
+### Local CI (Makefile)
+
+```bash
+make build        # compile the binary
+make scan         # run jensec against itself
+make test         # run unit tests
+make scan-secrets # secrets only
+make scan-sast    # SAST only
 ```
 
 ---
@@ -189,9 +237,16 @@ Framework detection: Gin, Echo, Fiber, Next.js, NestJS, Express, React, Vue, Dja
 
 ---
 
+## Roadmap
+
+- **v0.2** — Correlation engine, dependency scanning (Trivy + OSV), risk scoring with named bands (LOW → SEVERE), structured recommendations, and trend analysis
+- **v0.3** — Docker image scanning, IaC scanning (Terraform, Kubernetes, CloudFormation), pre-commit hook installer, local web dashboard, M-Pesa and mobile money secret detection rules, Kenya DPA compliance report
+
+---
+
 ## Contributing
 
-Issues and PRs are welcome. Please open an issue before starting significant work so we can discuss approach.
+Issues and PRs are welcome. Please open an issue before starting significant work so we can discuss approach. See [CONTRIBUTING.md](CONTRIBUTING.md) for full details.
 
 ```bash
 git clone https://github.com/isthobbit/kinga
@@ -206,52 +261,4 @@ go test ./...
 
 MIT © isthobbit
 
----
 
-*Built in Kenya for the world.*
-
----
-
-## CI/CD Integration
-
-jensec ships with ready-to-use CI configurations.
-
-### GitHub Actions
-
-The workflow is already in `.github/workflows/jensec.yml`. It runs on every push and pull request to `main`, `master`, or `develop`.
-
-To adjust the failure threshold, edit the `--fail-on` flag in the workflow:
-
-```yaml
-- name: Run secrets scan
-  run: jensec scan secrets . --fail-on critical  # only fail on CRITICAL
-```
-
-### GitLab CI
-
-Copy `.gitlab-ci.yml` to your repo root, or include it from your existing pipeline. The threshold is controlled by the `JENGSEC_FAIL_ON` variable:
-
-```yaml
-variables:
-  JENGSEC_FAIL_ON: "critical"
-```
-
-Or set it in GitLab under **Settings → CI/CD → Variables**.
-
-### Local CI (Makefile)
-
-```bash
-make build        # compile the binary
-make scan         # run jensec against itself
-make test         # run tests
-make scan-secrets # secrets only
-make scan-sast    # SAST only
-```
-
-### Exit codes
-
-| Code | Meaning |
-|------|---------|
-| `0` | Clean — no findings at or above `--fail-on` threshold |
-| `1` | Findings at or above threshold — fail the pipeline |
-| `2` | Tool error — Gitleaks or Semgrep not installed or crashed |
