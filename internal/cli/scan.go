@@ -9,6 +9,8 @@ import (
 
 	"github.com/isthobbit/vigil/internal/config"
 	"github.com/isthobbit/vigil/internal/installer"
+	"github.com/isthobbit/vigil/internal/scan/deps/osv"
+	"github.com/isthobbit/vigil/internal/scan/deps/trivy"
 	"github.com/isthobbit/vigil/internal/scan/sast"
 	"github.com/isthobbit/vigil/internal/scan/secrets"
 	"github.com/isthobbit/vigil/internal/store"
@@ -28,7 +30,7 @@ var scanCmd = &cobra.Command{
 
 var scanAllCmd = &cobra.Command{
 	Use:   "all [path]",
-	Short: "Run all scans (SAST + secrets)",
+	Short: "Run all scans (secrets + SAST + dependencies)",
 	Args:  cobra.MaximumNArgs(1),
 	RunE:  runScanAll,
 }
@@ -47,11 +49,18 @@ var scanSecretsCmd = &cobra.Command{
 	RunE:  runScanSecrets,
 }
 
+var scanDepsCmd = &cobra.Command{
+	Use:   "deps [path]",
+	Short: "Run dependency vulnerability scan (powered by Trivy + OSV)",
+	Args:  cobra.MaximumNArgs(1),
+	RunE:  runScanDeps,
+}
+
 func init() {
-	scanCmd.AddCommand(scanAllCmd, scanSASTCmd, scanSecretsCmd)
+	scanCmd.AddCommand(scanAllCmd, scanSASTCmd, scanSecretsCmd, scanDepsCmd)
 	rootCmd.AddCommand(scanCmd)
 
-	for _, cmd := range []*cobra.Command{scanAllCmd, scanSASTCmd, scanSecretsCmd} {
+	for _, cmd := range []*cobra.Command{scanAllCmd, scanSASTCmd, scanSecretsCmd, scanDepsCmd} {
 		cmd.Flags().StringVarP(&scanOutput, "output", "o", "", "write JSON results to file")
 		cmd.Flags().StringVar(&failOn, "fail-on", "", "exit 1 at this severity or above (critical|high|medium|low|none)")
 	}
@@ -64,7 +73,7 @@ func resolvePath(args []string) (string, error) {
 	return os.Getwd()
 }
 
-// â”€â”€ Scan commands â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Scan commands ─────────────────────────────────────────────────────────────
 
 func runScanAll(cmd *cobra.Command, args []string) error {
 	path, err := resolvePath(args)
@@ -72,16 +81,14 @@ func runScanAll(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// Ensure both tools are present, prompting to install any that are missing.
-	// If the user declines or install fails we skip that scanner but continue.
-	gitleaksOK, semgrepOK := installer.EnsureAll(noColor)
+	gitleaksOK, semgrepOK, trivyOK, osvOK := installer.EnsureAll(noColor)
 
 	cfg := loadConfig()
 	threshold := resolveFailOn(cfg)
 	startedAt := time.Now()
 
 	if !jsonOut {
-		scanners := activeScanners(gitleaksOK, semgrepOK)
+		scanners := activeScanners(gitleaksOK, semgrepOK, trivyOK, osvOK)
 		output.PrintScanHeader(path, scanners, noColor)
 	}
 
@@ -105,6 +112,22 @@ func runScanAll(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	var trivyResult *trivy.Result
+	if trivyOK {
+		trivyResult, err = trivy.Run(path, verbose, cfg.Scan.Timeout, cfg.Scan.ExcludePaths)
+		if err != nil {
+			printScannerError("trivy", err)
+		}
+	}
+
+	var osvResult *osv.Result
+	if osvOK {
+		osvResult, err = osv.Run(path, verbose, cfg.Scan.Timeout, cfg.Scan.ExcludePaths)
+		if err != nil {
+			printScannerError("osv", err)
+		}
+	}
+
 	elapsed := time.Since(startedAt)
 
 	if !jsonOut {
@@ -112,10 +135,10 @@ func runScanAll(cmd *cobra.Command, args []string) error {
 		output.PrintScanSummary(sc, ac, elapsed, noColor)
 	}
 
-	persistScan(path, "secrets,sast", startedAt, time.Now(), secretsResult, sastResult)
+	persistScan(path, "secrets,sast,trivy,osv", startedAt, time.Now(), secretsResult, sastResult, trivyResult, osvResult)
 
 	if jsonOut || scanOutput != "" {
-		writeJSONOutput(path, secretsResult, sastResult)
+		writeJSONOutput(path, secretsResult, sastResult, trivyResult, osvResult)
 	}
 
 	if shouldFail(threshold, secretsResult, sastResult) {
@@ -130,7 +153,6 @@ func runScanSAST(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// Prompt to install semgrep if missing.
 	if !installer.IsInstalled(installer.Semgrep) {
 		ok, _ := installer.Prompt(installer.Semgrep, noColor)
 		if !ok {
@@ -158,10 +180,10 @@ func runScanSAST(cmd *cobra.Command, args []string) error {
 		output.PrintScanSummary(0, len(result.Findings), time.Since(startedAt), noColor)
 	}
 
-	persistScan(path, "sast", startedAt, time.Now(), nil, result)
+	persistScan(path, "sast", startedAt, time.Now(), nil, result, nil, nil)
 
 	if jsonOut || scanOutput != "" {
-		writeJSONOutput(path, nil, result)
+		writeJSONOutput(path, nil, result, nil, nil)
 	}
 
 	if config.MeetsSeverityThreshold(highestSeverity(nil, result), threshold) {
@@ -176,7 +198,6 @@ func runScanSecrets(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// Prompt to install gitleaks if missing.
 	if !installer.IsInstalled(installer.Gitleaks) {
 		ok, _ := installer.Prompt(installer.Gitleaks, noColor)
 		if !ok {
@@ -204,10 +225,10 @@ func runScanSecrets(cmd *cobra.Command, args []string) error {
 		output.PrintScanSummary(len(result.Findings), 0, time.Since(startedAt), noColor)
 	}
 
-	persistScan(path, "secrets", startedAt, time.Now(), result, nil)
+	persistScan(path, "secrets", startedAt, time.Now(), result, nil, nil, nil)
 
 	if jsonOut || scanOutput != "" {
-		writeJSONOutput(path, result, nil)
+		writeJSONOutput(path, result, nil, nil, nil)
 	}
 
 	if config.MeetsSeverityThreshold(highestSeverity(result, nil), threshold) {
@@ -216,7 +237,65 @@ func runScanSecrets(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+func runScanDeps(cmd *cobra.Command, args []string) error {
+	path, err := resolvePath(args)
+	if err != nil {
+		return err
+	}
+
+	trivyOK := installer.IsInstalled(installer.Trivy)
+	osvOK := installer.IsInstalled(installer.OSVScanner)
+
+	if !trivyOK {
+		ok, _ := installer.Prompt(installer.Trivy, noColor)
+		trivyOK = ok
+	}
+	if !osvOK {
+		ok, _ := installer.Prompt(installer.OSVScanner, noColor)
+		osvOK = ok
+	}
+
+	if !trivyOK && !osvOK {
+		fmt.Fprintln(os.Stderr, "At least one of trivy or osv-scanner is required. Exiting.")
+		os.Exit(2)
+	}
+
+	cfg := loadConfig()
+	startedAt := time.Now()
+
+	if !jsonOut {
+		output.PrintScanHeader(path, []string{"trivy", "osv"}, noColor)
+	}
+
+	var trivyResult *trivy.Result
+	if trivyOK {
+		trivyResult, err = trivy.Run(path, verbose, cfg.Scan.Timeout, cfg.Scan.ExcludePaths)
+		if err != nil {
+			printScannerError("trivy", err)
+		}
+	}
+
+	var osvResult *osv.Result
+	if osvOK {
+		osvResult, err = osv.Run(path, verbose, cfg.Scan.Timeout, cfg.Scan.ExcludePaths)
+		if err != nil {
+			printScannerError("osv", err)
+		}
+	}
+
+	elapsed := time.Since(startedAt)
+	_ = elapsed
+
+	persistScan(path, "trivy,osv", startedAt, time.Now(), nil, nil, trivyResult, osvResult)
+
+	if jsonOut || scanOutput != "" {
+		writeJSONOutput(path, nil, nil, trivyResult, osvResult)
+	}
+
+	return nil
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 func loadConfig() *config.Config {
 	cfg, err := config.Load(cfgFile)
@@ -234,7 +313,6 @@ func resolveFailOn(cfg *config.Config) string {
 	return strings.ToLower(cfg.Scan.FailOn)
 }
 
-// shouldFail returns true when the highest severity found meets or exceeds threshold.
 func shouldFail(threshold string, s *secrets.Result, a *sast.Result) bool {
 	if threshold == "none" {
 		return false
@@ -242,10 +320,6 @@ func shouldFail(threshold string, s *secrets.Result, a *sast.Result) bool {
 	return config.MeetsSeverityThreshold(highestSeverity(s, a), threshold)
 }
 
-// highestSeverity returns the most severe finding level across both result sets.
-// Secrets findings have no per-finding severity; all detected secrets are treated
-// as HIGH (a leaked credential is always significant). This means --fail-on critical
-// will NOT trigger on secrets findings â€” use --fail-on high or lower for that.
 func highestSeverity(s *secrets.Result, a *sast.Result) string {
 	best := ""
 	if s != nil && len(s.Findings) > 0 {
@@ -278,15 +352,19 @@ func countResults(s *secrets.Result, a *sast.Result) (int, int) {
 	return sc, ac
 }
 
-// activeScanners returns the list of scanner names that will actually run,
-// used to populate the scan header when some tools are unavailable.
-func activeScanners(gitleaksOK, semgrepOK bool) []string {
+func activeScanners(gitleaksOK, semgrepOK, trivyOK, osvOK bool) []string {
 	var s []string
 	if gitleaksOK {
 		s = append(s, "secrets")
 	}
 	if semgrepOK {
 		s = append(s, "sast")
+	}
+	if trivyOK {
+		s = append(s, "trivy")
+	}
+	if osvOK {
+		s = append(s, "osv")
 	}
 	if len(s) == 0 {
 		return []string{"none"}
@@ -303,7 +381,7 @@ func printScannerError(scanner string, err error) {
 	}
 }
 
-func persistScan(path, scanners string, startedAt, endedAt time.Time, s *secrets.Result, a *sast.Result) {
+func persistScan(path, scanners string, startedAt, endedAt time.Time, s *secrets.Result, a *sast.Result, t *trivy.Result, o *osv.Result) {
 	cfg := loadConfig()
 	db, err := store.Open(cfg.Storage.DBPath)
 	if err != nil {
@@ -312,27 +390,31 @@ func persistScan(path, scanners string, startedAt, endedAt time.Time, s *secrets
 	}
 	defer db.Close()
 
-	findings := buildFindingRecords(s, a)
-	scanID, err := db.SaveScan(path, scanners, startedAt, endedAt, findings)
+	codeFindings := buildCodeFindingRecords(s, a)
+	scanID, err := db.SaveScan(path, scanners, startedAt, endedAt, codeFindings)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "WARNING: Could not save scan: %v\n", err)
 		return
 	}
+
+	depFindings := buildDepFindingRecords(t, o)
+	if len(depFindings) > 0 {
+		if err := db.SaveDependencyFindings(scanID, depFindings); err != nil {
+			fmt.Fprintf(os.Stderr, "WARNING: Could not save dependency findings: %v\n", err)
+		}
+	}
+
 	if verbose {
 		fmt.Printf("  Scan saved (ID: %d)\n", scanID)
 	}
 }
 
-func buildFindingRecords(s *secrets.Result, a *sast.Result) []store.FindingRecord {
-	var records []store.FindingRecord
+func buildCodeFindingRecords(s *secrets.Result, a *sast.Result) []store.CodeFindingRecord {
+	var records []store.CodeFindingRecord
 	if s != nil {
 		for _, f := range s.Findings {
-			records = append(records, store.FindingRecord{
-				Scanner: "secrets",
-				// Gitleaks does not emit per-finding severity; we treat all
-				// detected secrets as HIGH â€” a leaked credential is always
-				// significant regardless of entropy. Future versions may
-				// introduce per-rule overrides via a custom gitleaks config.
+			records = append(records, store.CodeFindingRecord{
+				Scanner:  "secrets",
 				Severity: "HIGH",
 				RuleID:   f.RuleID,
 				File:     f.File,
@@ -344,7 +426,7 @@ func buildFindingRecords(s *secrets.Result, a *sast.Result) []store.FindingRecor
 	}
 	if a != nil {
 		for _, f := range a.Findings {
-			records = append(records, store.FindingRecord{
+			records = append(records, store.CodeFindingRecord{
 				Scanner:  "sast",
 				Severity: f.Severity,
 				RuleID:   f.RuleID,
@@ -352,6 +434,39 @@ func buildFindingRecords(s *secrets.Result, a *sast.Result) []store.FindingRecor
 				Line:     f.Start.Line,
 				Message:  f.Message,
 				RawMatch: f.Lines,
+			})
+		}
+	}
+	return records
+}
+
+func buildDepFindingRecords(t *trivy.Result, o *osv.Result) []store.DepFindingRecord {
+	var records []store.DepFindingRecord
+	if t != nil {
+		for _, f := range t.Findings {
+			records = append(records, store.DepFindingRecord{
+				Scanner:      "trivy",
+				Severity:     f.Severity,
+				Package:      f.Package,
+				Version:      f.Version,
+				CVEID:        f.CVEID,
+				Ecosystem:    f.Ecosystem,
+				FixedVersion: f.FixedVersion,
+				Description:  f.Description,
+			})
+		}
+	}
+	if o != nil {
+		for _, f := range o.Findings {
+			records = append(records, store.DepFindingRecord{
+				Scanner:      "osv",
+				Severity:     f.Severity,
+				Package:      f.Package,
+				Version:      f.Version,
+				CVEID:        f.CVEID,
+				Ecosystem:    f.Ecosystem,
+				FixedVersion: f.FixedVersion,
+				Description:  f.Description,
 			})
 		}
 	}
@@ -369,7 +484,7 @@ func redactForStore(match, secret string) string {
 	return strings.ReplaceAll(match, secret, strings.Repeat("*", n))
 }
 
-func writeJSONOutput(path string, s *secrets.Result, a *sast.Result) {
+func writeJSONOutput(path string, s *secrets.Result, a *sast.Result, t *trivy.Result, o *osv.Result) {
 	if scanOutput != "" {
 		f, err := os.Create(scanOutput)
 		if err != nil {
@@ -377,8 +492,8 @@ func writeJSONOutput(path string, s *secrets.Result, a *sast.Result) {
 			return
 		}
 		defer f.Close()
-		output.WriteJSON(f, path, s, a)
+		output.WriteJSON(f, path, s, a, t, o)
 		return
 	}
-	output.WriteJSON(os.Stdout, path, s, a)
+	output.WriteJSON(os.Stdout, path, s, a, t, o)
 }

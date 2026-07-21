@@ -1,5 +1,5 @@
 // Package installer handles detection and guided installation of the external
-// tools that jensec depends on: gitleaks and semgrep.
+// tools that jensec depends on: gitleaks, semgrep, trivy, and osv-scanner.
 //
 // When a tool is missing, the caller can invoke Prompt to ask the user
 // interactively whether they want jensec to install it. If the user agrees,
@@ -27,8 +27,10 @@ import (
 type Tool string
 
 const (
-	Gitleaks Tool = "gitleaks"
-	Semgrep  Tool = "semgrep"
+	Gitleaks   Tool = "gitleaks"
+	Semgrep    Tool = "semgrep"
+	Trivy      Tool = "trivy"
+	OSVScanner Tool = "osv-scanner"
 )
 
 // meta holds display name, install instructions per platform, and a fallback URL.
@@ -54,6 +56,18 @@ func toolMeta(t Tool) meta {
 			DisplayName: "Semgrep (SAST scanner)",
 			ManualURL:   "https://semgrep.dev/docs/getting-started",
 			installFn:   installSemgrep,
+		}
+	case Trivy:
+		return meta{
+			DisplayName: "Trivy (dependency vulnerability scanner)",
+			ManualURL:   "https://aquasecurity.github.io/trivy/latest/getting-started/installation/",
+			installFn:   installTrivy,
+		}
+	case OSVScanner:
+		return meta{
+			DisplayName: "OSV-Scanner (dependency vulnerability scanner)",
+			ManualURL:   "https://google.github.io/osv-scanner/installation/",
+			installFn:   installOSVScanner,
 		}
 	default:
 		return meta{DisplayName: string(t)}
@@ -104,12 +118,14 @@ func Prompt(t Tool, noColor bool) (installed bool, err error) {
 	return true, nil
 }
 
-// EnsureAll checks both gitleaks and semgrep. For each missing tool it calls
-// Prompt. It returns two booleans: whether gitleaks and semgrep are available
-// after the prompts (either pre-existing or freshly installed).
-func EnsureAll(noColor bool) (gitleaksOK, semgrepOK bool) {
+// EnsureAll checks all four scanners. For each missing tool it calls Prompt.
+// It returns four booleans: whether gitleaks, semgrep, trivy, and osv-scanner
+// are available after the prompts (either pre-existing or freshly installed).
+func EnsureAll(noColor bool) (gitleaksOK, semgrepOK, trivyOK, osvOK bool) {
 	gitleaksOK = IsInstalled(Gitleaks)
 	semgrepOK = IsInstalled(Semgrep)
+	trivyOK = IsInstalled(Trivy)
+	osvOK = IsInstalled(OSVScanner)
 
 	if !gitleaksOK {
 		ok, _ := Prompt(Gitleaks, noColor)
@@ -118,6 +134,14 @@ func EnsureAll(noColor bool) (gitleaksOK, semgrepOK bool) {
 	if !semgrepOK {
 		ok, _ := Prompt(Semgrep, noColor)
 		semgrepOK = ok
+	}
+	if !trivyOK {
+		ok, _ := Prompt(Trivy, noColor)
+		trivyOK = ok
+	}
+	if !osvOK {
+		ok, _ := Prompt(OSVScanner, noColor)
+		osvOK = ok
 	}
 	return
 }
@@ -140,8 +164,6 @@ func installGitleaks() error {
 func installSemgrep() error {
 	switch runtime.GOOS {
 	case "darwin":
-		// Prefer pip so the version matches the macOS brew formula;
-		// both work but pip is the canonical install path per semgrep docs.
 		return pip("semgrep")
 	case "linux":
 		return pip("semgrep")
@@ -152,6 +174,32 @@ func installSemgrep() error {
 	}
 }
 
+func installTrivy() error {
+	switch runtime.GOOS {
+	case "darwin":
+		return brew("trivy")
+	case "linux":
+		return installTrivyLinux()
+	case "windows":
+		return winget("AquaSecurity.Trivy")
+	default:
+		return unsupported("trivy", "https://aquasecurity.github.io/trivy/latest/getting-started/installation/")
+	}
+}
+
+func installOSVScanner() error {
+	switch runtime.GOOS {
+	case "darwin":
+		return brew("osv-scanner")
+	case "linux":
+		return installOSVScannerLinux()
+	case "windows":
+		return installOSVScannerWindows()
+	default:
+		return unsupported("osv-scanner", "https://google.github.io/osv-scanner/installation/")
+	}
+}
+
 // installGitleaksLinux tries, in order: brew (if present), apt, dnf, pacman,
 // then falls back to the GitHub release download.
 func installGitleaksLinux() error {
@@ -159,7 +207,6 @@ func installGitleaksLinux() error {
 		return brew("gitleaks")
 	}
 	if hasBin("apt-get") {
-		// gitleaks is not in the default apt repos; use the GitHub release.
 		return installGitleaksViaGitHub()
 	}
 	if hasBin("dnf") {
@@ -175,9 +222,47 @@ func installGitleaksLinux() error {
 // from GitHub Releases using the official install script.
 func installGitleaksViaGitHub() error {
 	fmt.Fprintln(os.Stderr, "   → Downloading gitleaks from GitHub Releases...")
-	// Official one-liner from the gitleaks README.
 	script := `curl -sSfL https://raw.githubusercontent.com/gitleaks/gitleaks/master/scripts/install.sh | sh -s -- -b /usr/local/bin`
 	return run("sh", "-c", script)
+}
+
+// installTrivyLinux installs Trivy on Linux using the official install script.
+func installTrivyLinux() error {
+	if hasBin("brew") {
+		return brew("trivy")
+	}
+	if hasBin("apt-get") {
+		return installTrivyViaScript()
+	}
+	if hasBin("dnf") {
+		return installTrivyViaScript()
+	}
+	return installTrivyViaScript()
+}
+
+// installTrivyViaScript downloads and installs Trivy using the official script.
+func installTrivyViaScript() error {
+	fmt.Fprintln(os.Stderr, "   → Downloading Trivy from GitHub Releases...")
+	script := `curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin`
+	return run("sh", "-c", script)
+}
+
+// installOSVScannerLinux installs OSV-Scanner on Linux.
+func installOSVScannerLinux() error {
+	if hasBin("brew") {
+		return brew("osv-scanner")
+	}
+	fmt.Fprintln(os.Stderr, "   → Downloading osv-scanner from GitHub Releases...")
+	script := `curl -sSfL https://github.com/google/osv-scanner/releases/latest/download/osv-scanner_linux_amd64 -o /usr/local/bin/osv-scanner && chmod +x /usr/local/bin/osv-scanner`
+	return run("sh", "-c", script)
+}
+
+// installOSVScannerWindows installs OSV-Scanner on Windows via winget or direct download.
+func installOSVScannerWindows() error {
+	if hasBin("winget") {
+		return winget("Google.OSVScanner")
+	}
+	return unsupported("osv-scanner", "https://google.github.io/osv-scanner/installation/")
 }
 
 // ── Low-level helpers ─────────────────────────────────────────────────────────
@@ -188,7 +273,6 @@ func brew(pkg string) error {
 }
 
 func pip(pkg string) error {
-	// Prefer pip3, fall back to pip.
 	pipBin := "pip3"
 	if !hasBin("pip3") {
 		pipBin = "pip"
@@ -199,9 +283,6 @@ func pip(pkg string) error {
 
 func winget(id string) error {
 	fmt.Fprintf(os.Stderr, "   → Running: winget install %s\n", id)
-	// --accept-source-agreements and --accept-package-agreements suppress the
-	// interactive Microsoft Store prompts that winget emits when called from
-	// inside another process — without them the install fails with 0x8a150042.
 	return run("winget", "install", id, "--accept-source-agreements", "--accept-package-agreements")
 }
 
@@ -231,7 +312,7 @@ func hasBin(name string) bool {
 func readYes() bool {
 	scanner := bufio.NewScanner(os.Stdin)
 	if !scanner.Scan() {
-		return false // EOF / no TTY → treat as "no"
+		return false
 	}
 	input := strings.TrimSpace(scanner.Text())
 	return input == "" || strings.EqualFold(input, "y") || strings.EqualFold(input, "yes")

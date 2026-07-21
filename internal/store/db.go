@@ -18,7 +18,7 @@ type DB struct {
 // Open opens (or creates) the jensec SQLite database.
 //
 // If dbPath is non-empty it is used as-is (honouring storage.db_path from the
-// config file). Otherwise the default location ~/.vigil/jensec.db is used.
+// config file). Otherwise the default location ~/.kinga/jensec.db is used.
 // The parent directory is created if it does not exist.
 func Open(dbPath ...string) (*DB, error) {
 	var resolvedPath string
@@ -29,7 +29,7 @@ func Open(dbPath ...string) (*DB, error) {
 		if err != nil {
 			return nil, fmt.Errorf("could not find home directory: %w", err)
 		}
-		resolvedPath = filepath.Join(home, ".vigil", "jensec.db")
+		resolvedPath = filepath.Join(home, ".kinga", "jensec.db")
 	}
 
 	dir := filepath.Dir(resolvedPath)
@@ -60,38 +60,58 @@ func (db *DB) Close() error {
 }
 
 // migrate applies the schema and runs any pending version upgrades.
-// All DDL uses CREATE IF NOT EXISTS so it is safe to re-run against an existing DB.
 func (db *DB) migrate() error {
-	// Apply base DDL.
-	if _, err := db.conn.Exec(schema); err != nil {
-		return err
-	}
-
-	// Read the current schema version (0 if the table is empty, i.e. fresh DB).
+	// Read the current schema version (0 = fresh database).
 	var current int
-	db.conn.QueryRow(`SELECT COALESCE(MAX(version), 0) FROM schema_version`).Scan(&current)
+	db.conn.QueryRow(`
+		SELECT COALESCE(MAX(version), 0)
+		FROM schema_version
+		WHERE EXISTS (SELECT 1 FROM sqlite_master WHERE type='table' AND name='schema_version')
+	`).Scan(&current)
 
-	if current == 0 {
-		// Fresh database â€” stamp with the current version; no migrations needed.
+	switch {
+	case current == 0:
+		// Fresh database — apply v2 schema and stamp version.
+		if _, err := db.conn.Exec(schemaV2); err != nil {
+			return fmt.Errorf("applying v2 schema: %w", err)
+		}
 		_, err := db.conn.Exec(`INSERT INTO schema_version (version) VALUES (?)`, currentSchemaVersion)
 		return err
-	}
 
-	// Future migrations go here, e.g.:
-	//   if current < 2 { applyV2(db.conn) }
-	// Each step should bump schema_version to the new version number.
+	case current < 2:
+		// Existing v1 database — run the v1→v2 migration.
+		if err := db.applyMigration(migrateV1ToV2); err != nil {
+			return fmt.Errorf("migrating v1 to v2: %w", err)
+		}
+	}
 
 	return nil
 }
 
-// SaveScan persists a complete scan run and its findings in a single transaction.
-// It returns the ID assigned to the scan row.
-func (db *DB) SaveScan(path, scanners string, startedAt, endedAt time.Time, findings []FindingRecord) (int64, error) {
+// applyMigration executes a multi-statement migration string inside a
+// transaction, rolling back on any error.
+func (db *DB) applyMigration(migration string) error {
+	tx, err := db.conn.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.Exec(migration); err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+// SaveScan persists a complete scan run and its code findings in a single
+// transaction. Returns the ID assigned to the scan row.
+func (db *DB) SaveScan(path, scanners string, startedAt, endedAt time.Time, findings []CodeFindingRecord) (int64, error) {
 	tx, err := db.conn.Begin()
 	if err != nil {
 		return 0, fmt.Errorf("could not begin transaction: %w", err)
 	}
-	defer tx.Rollback() // no-op if Commit succeeds
+	defer tx.Rollback()
 
 	// Insert scan record.
 	res, err := tx.Exec(
@@ -107,9 +127,9 @@ func (db *DB) SaveScan(path, scanners string, startedAt, endedAt time.Time, find
 		return 0, err
 	}
 
-	// Insert each finding.
+	// Insert each code finding.
 	stmt, err := tx.Prepare(`
-		INSERT INTO findings (scan_id, scanner, severity, rule_id, file, line, message, raw_match)
+		INSERT INTO code_findings (scan_id, scanner, severity, rule_id, file, line, message, raw_match)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
@@ -126,10 +146,36 @@ func (db *DB) SaveScan(path, scanners string, startedAt, endedAt time.Time, find
 	return scanID, tx.Commit()
 }
 
+// SaveDependencyFindings persists dependency findings for a scan.
+func (db *DB) SaveDependencyFindings(scanID int64, findings []DepFindingRecord) error {
+	tx, err := db.conn.Begin()
+	if err != nil {
+		return fmt.Errorf("could not begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	stmt, err := tx.Prepare(`
+		INSERT INTO dependency_findings (scan_id, scanner, severity, package, version, cve_id, ecosystem, fixed_version, description)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`)
+	if err != nil {
+		return fmt.Errorf("could not prepare dependency finding insert: %w", err)
+	}
+	defer stmt.Close()
+
+	for _, f := range findings {
+		if _, err := stmt.Exec(scanID, f.Scanner, f.Severity, f.Package, f.Version, f.CVEID, f.Ecosystem, f.FixedVersion, f.Description); err != nil {
+			return fmt.Errorf("could not insert dependency finding: %w", err)
+		}
+	}
+
+	return tx.Commit()
+}
+
 // LatestScan returns the most recent scan record, or nil if none exist.
 func (db *DB) LatestScan() (*ScanRecord, error) {
 	row := db.conn.QueryRow(`
-		SELECT id, scan_path, started_at, ended_at, scanners, total
+		SELECT id, scan_path, started_at, ended_at, scanners, total, risk_score
 		FROM scans
 		ORDER BY started_at DESC
 		LIMIT 1
@@ -140,17 +186,17 @@ func (db *DB) LatestScan() (*ScanRecord, error) {
 // ScanByID returns a specific scan record by ID.
 func (db *DB) ScanByID(id int64) (*ScanRecord, error) {
 	row := db.conn.QueryRow(`
-		SELECT id, scan_path, started_at, ended_at, scanners, total
+		SELECT id, scan_path, started_at, ended_at, scanners, total, risk_score
 		FROM scans WHERE id = ?
 	`, id)
 	return scanFromRow(row)
 }
 
-// FindingsForScan returns all findings for a given scan ID.
-func (db *DB) FindingsForScan(scanID int64) ([]FindingRecord, error) {
+// CodeFindingsForScan returns all code findings for a given scan ID.
+func (db *DB) CodeFindingsForScan(scanID int64) ([]CodeFindingRecord, error) {
 	rows, err := db.conn.Query(`
 		SELECT id, scan_id, scanner, severity, rule_id, file, line, message, raw_match
-		FROM findings
+		FROM code_findings
 		WHERE scan_id = ?
 		ORDER BY severity, file, line
 	`, scanID)
@@ -159,10 +205,34 @@ func (db *DB) FindingsForScan(scanID int64) ([]FindingRecord, error) {
 	}
 	defer rows.Close()
 
-	var findings []FindingRecord
+	var findings []CodeFindingRecord
 	for rows.Next() {
-		var f FindingRecord
+		var f CodeFindingRecord
 		if err := rows.Scan(&f.ID, &f.ScanID, &f.Scanner, &f.Severity, &f.RuleID, &f.File, &f.Line, &f.Message, &f.RawMatch); err != nil {
+			return nil, err
+		}
+		findings = append(findings, f)
+	}
+	return findings, rows.Err()
+}
+
+// DepFindingsForScan returns all dependency findings for a given scan ID.
+func (db *DB) DepFindingsForScan(scanID int64) ([]DepFindingRecord, error) {
+	rows, err := db.conn.Query(`
+		SELECT id, scan_id, scanner, severity, package, version, cve_id, ecosystem, fixed_version, description
+		FROM dependency_findings
+		WHERE scan_id = ?
+		ORDER BY severity, package
+	`, scanID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var findings []DepFindingRecord
+	for rows.Next() {
+		var f DepFindingRecord
+		if err := rows.Scan(&f.ID, &f.ScanID, &f.Scanner, &f.Severity, &f.Package, &f.Version, &f.CVEID, &f.Ecosystem, &f.FixedVersion, &f.Description); err != nil {
 			return nil, err
 		}
 		findings = append(findings, f)
@@ -173,7 +243,7 @@ func (db *DB) FindingsForScan(scanID int64) ([]FindingRecord, error) {
 // RecentScans returns the n most recent scan records.
 func (db *DB) RecentScans(n int) ([]ScanRecord, error) {
 	rows, err := db.conn.Query(`
-		SELECT id, scan_path, started_at, ended_at, scanners, total
+		SELECT id, scan_path, started_at, ended_at, scanners, total, risk_score
 		FROM scans
 		ORDER BY started_at DESC
 		LIMIT ?
@@ -186,7 +256,7 @@ func (db *DB) RecentScans(n int) ([]ScanRecord, error) {
 	var scans []ScanRecord
 	for rows.Next() {
 		var s ScanRecord
-		if err := rows.Scan(&s.ID, &s.ScanPath, &s.StartedAt, &s.EndedAt, &s.Scanners, &s.Total); err != nil {
+		if err := rows.Scan(&s.ID, &s.ScanPath, &s.StartedAt, &s.EndedAt, &s.Scanners, &s.Total, &s.RiskScore); err != nil {
 			return nil, err
 		}
 		scans = append(scans, s)
@@ -196,7 +266,7 @@ func (db *DB) RecentScans(n int) ([]ScanRecord, error) {
 
 func scanFromRow(row *sql.Row) (*ScanRecord, error) {
 	var s ScanRecord
-	err := row.Scan(&s.ID, &s.ScanPath, &s.StartedAt, &s.EndedAt, &s.Scanners, &s.Total)
+	err := row.Scan(&s.ID, &s.ScanPath, &s.StartedAt, &s.EndedAt, &s.Scanners, &s.Total, &s.RiskScore)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
