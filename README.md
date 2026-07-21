@@ -1,13 +1,13 @@
-# jensec · by KINGA
+# jensec · by VIGIL
 
-![Build](https://github.com/isthobbit/kinga/actions/workflows/jensec.yml/badge.svg)
-![Release](https://img.shields.io/github/v/release/isthobbit/kinga)
-![License](https://img.shields.io/github/license/isthobbit/kinga)
+![Build](https://github.com/isthobbit/vigil/actions/workflows/jensec.yml/badge.svg)
+![Release](https://img.shields.io/github/v/release/isthobbit/vigil)
+![License](https://img.shields.io/github/license/isthobbit/vigil)
 ![Go](https://img.shields.io/badge/go-1.22+-blue)
 
 ```
 ╭─────────────────────────────────────────╮
-│  jensec · by KINGA                      │
+│  jensec · by VIGIL                      │
 │  Offline-first DevSecOps scanner        │
 ╰─────────────────────────────────────────╯
 ```
@@ -34,34 +34,34 @@ Powered by [Gitleaks](https://github.com/gitleaks/gitleaks) (secrets), [Semgrep]
 
 ### Download a binary (recommended)
 
-Download the latest release for your platform from the [Releases page](https://github.com/isthobbit/kinga/releases).
+Download the latest release for your platform from the [Releases page](https://github.com/isthobbit/vigil/releases).
 
 **Linux (amd64)**
 ```bash
-curl -L https://github.com/isthobbit/kinga/releases/latest/download/jensec_linux_amd64.tar.gz | tar xz
+curl -L https://github.com/isthobbit/vigil/releases/latest/download/jensec_linux_amd64.tar.gz | tar xz
 sudo mv jensec /usr/local/bin/
 ```
 
 **macOS (Apple Silicon)**
 ```bash
-curl -L https://github.com/isthobbit/kinga/releases/latest/download/jensec_darwin_arm64.tar.gz | tar xz
+curl -L https://github.com/isthobbit/vigil/releases/latest/download/jensec_darwin_arm64.tar.gz | tar xz
 sudo mv jensec /usr/local/bin/
 ```
 
 **macOS (Intel)**
 ```bash
-curl -L https://github.com/isthobbit/kinga/releases/latest/download/jensec_darwin_amd64.tar.gz | tar xz
+curl -L https://github.com/isthobbit/vigil/releases/latest/download/jensec_darwin_amd64.tar.gz | tar xz
 sudo mv jensec /usr/local/bin/
 ```
 
 **Windows**
 
-Download `jensec_windows_amd64.zip` from the [Releases page](https://github.com/isthobbit/kinga/releases), extract, and add the binary to your PATH.
+Download `jensec_windows_amd64.zip` from the [Releases page](https://github.com/isthobbit/vigil/releases), extract, and add the binary to your PATH.
 
 ### Install with Go
 
 ```bash
-go install github.com/isthobbit/kinga/cmd/jensec@latest
+go install github.com/isthobbit/vigil/cmd/jensec@latest
 ```
 
 Requires Go 1.22+. The binary is placed in `$GOPATH/bin` (usually `~/go/bin`).
@@ -167,7 +167,7 @@ make scan-sast    # SAST only
 
 ## Scan history
 
-jensec stores every scan in `~/.kinga/jensec.db`. View past results:
+jensec stores every scan in `~/.vigil/jensec.db`. View past results:
 
 ```bash
 jensec report list          # list recent scans
@@ -178,7 +178,7 @@ jensec report show <id>     # show findings for a specific scan
 
 ## Configuration
 
-Create `~/.kinga/config.yaml` to set persistent defaults:
+Create `~/.vigil/config.yaml` to set persistent defaults:
 
 ```yaml
 scan:
@@ -196,14 +196,14 @@ output:
 
 storage:
   max_history: 100
-  # db_path: /custom/path/to/jensec.db   # optional; default is ~/.kinga/jensec.db
+  # db_path: /custom/path/to/jensec.db   # optional; default is ~/.vigil/jensec.db
 ```
 
-Any config value can also be set with a `KINGA_` environment variable:
+Any config value can also be set with a `VIGIL_` environment variable:
 
 ```bash
-KINGA_SCAN_FAIL_ON=critical jensec scan all
-KINGA_OUTPUT_NO_COLOR=true jensec scan all
+VIGIL_SCAN_FAIL_ON=critical jensec scan all
+VIGIL_OUTPUT_NO_COLOR=true jensec scan all
 ```
 
 ---
@@ -249,8 +249,8 @@ Framework detection: Gin, Echo, Fiber, Next.js, NestJS, Express, React, Vue, Dja
 Issues and PRs are welcome. Please open an issue before starting significant work so we can discuss approach. See [CONTRIBUTING.md](CONTRIBUTING.md) for full details.
 
 ```bash
-git clone https://github.com/isthobbit/kinga
-cd kinga
+git clone https://github.com/isthobbit/vigil
+cd vigil
 go mod tidy
 go test ./...
 ```
