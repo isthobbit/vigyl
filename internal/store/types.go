@@ -8,13 +8,14 @@ type ScanRecord struct {
 	ScanPath  string    `json:"scan_path"`
 	StartedAt time.Time `json:"started_at"`
 	EndedAt   time.Time `json:"ended_at"`
-	// Scanners is a comma-separated list of scanners that ran: "secrets,sast"
-	Scanners string `json:"scanners"`
-	Total    int    `json:"total_findings"`
+	// Scanners is a comma-separated list of scanners that ran: "secrets,sast,trivy,osv"
+	Scanners  string  `json:"scanners"`
+	Total     int     `json:"total_findings"`
+	RiskScore float64 `json:"risk_score"`
 }
 
-// FindingRecord is one finding from any scanner, stored flat.
-type FindingRecord struct {
+// CodeFindingRecord is one finding from a code scanner (Gitleaks or Semgrep).
+type CodeFindingRecord struct {
 	ID       int64  `json:"id"`
 	ScanID   int64  `json:"scan_id"`
 	Scanner  string `json:"scanner"`  // "secrets" | "sast"
@@ -25,4 +26,87 @@ type FindingRecord struct {
 	Message  string `json:"message"`
 	// RawMatch holds the redacted match string (secrets) or code line (sast).
 	RawMatch string `json:"raw_match"`
+}
+
+// DepFindingRecord is one finding from a dependency scanner (Trivy or OSV).
+type DepFindingRecord struct {
+	ID           int64  `json:"id"`
+	ScanID       int64  `json:"scan_id"`
+	Scanner      string `json:"scanner"`       // "trivy" | "osv"
+	Severity     string `json:"severity"`      // CRITICAL | HIGH | MEDIUM | LOW
+	Package      string `json:"package"`       // e.g. "github.com/foo/bar"
+	Version      string `json:"version"`       // e.g. "1.2.3"
+	CVEID        string `json:"cve_id"`        // e.g. "CVE-2024-12345" (empty if none)
+	Ecosystem    string `json:"ecosystem"`     // e.g. "Go" | "npm" | "PyPI"
+	FixedVersion string `json:"fixed_version"` // e.g. "1.2.4" (empty if no fix available)
+	Description  string `json:"description"`
+}
+
+// CorrelationRecord links two findings from different scanners.
+type CorrelationRecord struct {
+	ID               int64   `json:"id"`
+	ScanID           int64   `json:"scan_id"`
+	CodeFindingID    *int64  `json:"code_finding_id,omitempty"`
+	DepFindingID     *int64  `json:"dep_finding_id,omitempty"`
+	Reason           string  `json:"reason"` // e.g. "secret_in_vulnerable_file"
+	CorrelationScore float64 `json:"correlation_score"`
+	Directional      bool    `json:"directional"`
+	SourceFindingID  *int64  `json:"source_finding_id,omitempty"` // populated when Directional=true
+	TargetFindingID  *int64  `json:"target_finding_id,omitempty"` // populated when Directional=true
+}
+
+// RiskScoreRecord holds a rolled-up risk score for a scan, file, or package.
+// File and Package are mutually exclusive; both nil means the overall scan score.
+type RiskScoreRecord struct {
+	ID                       int64   `json:"id"`
+	ScanID                   int64   `json:"scan_id"`
+	File                     *string `json:"file,omitempty"`
+	Package                  *string `json:"package,omitempty"`
+	Score                    float64 `json:"score"`
+	ContributingFindingCount int     `json:"contributing_finding_count"`
+}
+
+// RiskBand maps a numeric risk score to a named severity band.
+type RiskBand string
+
+const (
+	RiskBandLow      RiskBand = "LOW"
+	RiskBandMedium   RiskBand = "MEDIUM"
+	RiskBandHigh     RiskBand = "HIGH"
+	RiskBandCritical RiskBand = "CRITICAL"
+	RiskBandSevere   RiskBand = "SEVERE"
+)
+
+// BandFromScore returns the named risk band for a given numeric score.
+func BandFromScore(score float64) RiskBand {
+	switch {
+	case score <= 2.0:
+		return RiskBandLow
+	case score <= 4.0:
+		return RiskBandMedium
+	case score <= 6.0:
+		return RiskBandHigh
+	case score <= 8.0:
+		return RiskBandCritical
+	default:
+		return RiskBandSevere
+	}
+}
+
+// BandDescription returns the human-readable description for a risk band.
+func BandDescription(band RiskBand) string {
+	switch band {
+	case RiskBandLow:
+		return "No significant issues detected"
+	case RiskBandMedium:
+		return "Some issues worth addressing"
+	case RiskBandHigh:
+		return "Significant issues requiring attention"
+	case RiskBandCritical:
+		return "Serious issues requiring immediate action"
+	case RiskBandSevere:
+		return "Multiple critical issues, do not ship"
+	default:
+		return "Unknown"
+	}
 }

@@ -35,7 +35,7 @@ func runReport(cmd *cobra.Command, args []string) error {
 	}
 	defer db.Close()
 
-	// --list â†’ print a summary table of recent scans and exit.
+	// --list → print a summary table of recent scans and exit.
 	if listScans {
 		return printScanList(db)
 	}
@@ -45,7 +45,7 @@ func runReport(cmd *cobra.Command, args []string) error {
 	if len(args) == 1 {
 		id, err := strconv.ParseInt(args[0], 10, 64)
 		if err != nil {
-			return fmt.Errorf("invalid scan ID %q â€” must be a number", args[0])
+			return fmt.Errorf("invalid scan ID %q — must be a number", args[0])
 		}
 		scan, err = db.ScanByID(id)
 		if err != nil {
@@ -65,16 +65,21 @@ func runReport(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	findings, err := db.FindingsForScan(scan.ID)
+	codeFindings, err := db.CodeFindingsForScan(scan.ID)
 	if err != nil {
-		return fmt.Errorf("could not retrieve findings: %w", err)
+		return fmt.Errorf("could not retrieve code findings: %w", err)
+	}
+
+	depFindings, err := db.DepFindingsForScan(scan.ID)
+	if err != nil {
+		return fmt.Errorf("could not retrieve dependency findings: %w", err)
 	}
 
 	if jsonOut {
-		return output.WriteJSONFromStore(os.Stdout, scan, findings)
+		return output.WriteJSONFromStore(os.Stdout, scan, codeFindings, depFindings)
 	}
 
-	output.PrintStoredReport(scan, findings, noColor)
+	output.PrintStoredReport(scan, codeFindings, depFindings, noColor)
 	return nil
 }
 
@@ -89,15 +94,17 @@ func printScanList(db *store.DB) error {
 		return nil
 	}
 
-	fmt.Printf("%-6s  %-19s  %-10s  %-8s  %s\n", "ID", "DATE", "SCANNERS", "FINDINGS", "PATH")
-	fmt.Println("â”€â”€â”€â”€â”€â”€  â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€  â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€  â”€â”€â”€â”€â”€â”€â”€â”€  â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€")
+	fmt.Printf("%-6s  %-19s  %-10s  %-8s  %-6s  %s\n", "ID", "DATE", "SCANNERS", "FINDINGS", "RISK", "PATH")
+	fmt.Println("──────  ───────────────────  ──────────  ────────  ──────  ────────────────────────────")
 
 	for _, s := range scans {
-		fmt.Printf("%-6d  %-19s  %-10s  %-8d  %s\n",
+		band := store.BandFromScore(s.RiskScore)
+		fmt.Printf("%-6d  %-19s  %-10s  %-8d  %-6s  %s\n",
 			s.ID,
 			s.StartedAt.Local().Format("2006-01-02 15:04:05"),
 			s.Scanners,
 			s.Total,
+			band,
 			s.ScanPath,
 		)
 	}
