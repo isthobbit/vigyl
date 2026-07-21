@@ -57,7 +57,7 @@ jobs:
 
       - name: Upload scan reports
         if: always() # upload even if a scan step fails
-        uses: actions/upload-artifact@65c4c4a1ddbde5eba5b66ff3c2e3cf60f2e70ef8 # v4.6.0
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: jensec-reports
           path: |
