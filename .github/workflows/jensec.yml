@@ -10,7 +10,7 @@ on:
 
 jobs:
   security-scan:
-    name: jensec Â· vigil Security Scan
+    name: jensec · vigil Security Scan
     runs-on: ubuntu-latest
 
     permissions:
@@ -20,14 +20,14 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
         with:
           go-version: "1.22"
 
-      # â”€â”€ Install dependencies â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      # ── Install dependencies ─────────────────────────────────────────────────
 
       - name: Install Gitleaks
         run: |
@@ -39,13 +39,13 @@ jobs:
           pip3 install semgrep --quiet
           semgrep --version
 
-      # â”€â”€ Build jensec from source â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      # ── Build jensec from source ─────────────────────────────────────────────
       - name: Build jensec
         run: |
           go build -o /usr/local/bin/jensec ./cmd/jensec
           jensec --version
 
-      # â”€â”€ Run scans â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      # ── Run scans ────────────────────────────────────────────────────────────
 
       - name: Run secrets scan
         run: jensec scan secrets . --fail-on high --json --output secrets-report.json
@@ -53,15 +53,14 @@ jobs:
       - name: Run SAST scan
         run: jensec scan sast . --fail-on high --json --output sast-report.json
 
-      # â”€â”€ Upload reports as artifacts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      # ── Upload reports as artifacts ──────────────────────────────────────────
 
       - name: Upload scan reports
         if: always() # upload even if a scan step fails
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@65c4c4a1ddbde5eba5b66ff3c2e3cf60f2e70ef8 # v4.6.0
         with:
           name: jensec-reports
           path: |
             secrets-report.json
             sast-report.json
           retention-days: 30
-

@@ -1,0 +1,12 @@
+{
+  "meta": {
+    "scan_path": ".",
+    "timestamp": "2026-07-21T07:26:13.8240496Z",
+    "scanners": [
+      "sast"
+    ]
+  },
+  "secrets": [],
+  "sast": [],
+  "total_findings": 0
+}
