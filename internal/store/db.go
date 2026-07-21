@@ -18,7 +18,7 @@ type DB struct {
 // Open opens (or creates) the jensec SQLite database.
 //
 // If dbPath is non-empty it is used as-is (honouring storage.db_path from the
-// config file). Otherwise the default location ~/.kinga/jensec.db is used.
+// config file). Otherwise the default location ~/.vigil/jensec.db is used.
 // The parent directory is created if it does not exist.
 func Open(dbPath ...string) (*DB, error) {
 	var resolvedPath string
@@ -29,7 +29,7 @@ func Open(dbPath ...string) (*DB, error) {
 		if err != nil {
 			return nil, fmt.Errorf("could not find home directory: %w", err)
 		}
-		resolvedPath = filepath.Join(home, ".kinga", "jensec.db")
+		resolvedPath = filepath.Join(home, ".vigil", "jensec.db")
 	}
 
 	dir := filepath.Dir(resolvedPath)
@@ -72,7 +72,7 @@ func (db *DB) migrate() error {
 	db.conn.QueryRow(`SELECT COALESCE(MAX(version), 0) FROM schema_version`).Scan(&current)
 
 	if current == 0 {
-		// Fresh database — stamp with the current version; no migrations needed.
+		// Fresh database â€” stamp with the current version; no migrations needed.
 		_, err := db.conn.Exec(`INSERT INTO schema_version (version) VALUES (?)`, currentSchemaVersion)
 		return err
 	}

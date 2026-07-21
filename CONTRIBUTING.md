@@ -1,16 +1,16 @@
 # Contributing to jensec
 
-First off — thank you for taking the time to contribute. jensec is built in Kenya for the world, and every issue, idea, and pull request makes it better for developers everywhere.
+First off â€” thank you for taking the time to contribute. jensec is built in Kenya for the world, and every issue, idea, and pull request makes it better for developers everywhere.
 
 ---
 
 ## Ways to contribute
 
-- **Report a bug** — open an issue with steps to reproduce
-- **Suggest a feature** — open an issue describing the use case
-- **Fix a bug** — open a PR referencing the issue
-- **Improve docs** — typos, clarity, missing examples all count
-- **Share feedback** — even just telling us how you use jensec helps
+- **Report a bug** â€” open an issue with steps to reproduce
+- **Suggest a feature** â€” open an issue describing the use case
+- **Fix a bug** â€” open a PR referencing the issue
+- **Improve docs** â€” typos, clarity, missing examples all count
+- **Share feedback** â€” even just telling us how you use jensec helps
 
 ---
 
@@ -30,8 +30,8 @@ First off — thank you for taking the time to contribute. jensec is built in Ke
 
 **Clone and build**
 ```bash
-git clone https://github.com/isthobbit/kinga.git
-cd kinga
+git clone https://github.com/isthobbit/vigil.git
+cd vigil
 go mod tidy
 make build
 ```
@@ -43,7 +43,7 @@ make test
 go test ./... -v
 ```
 
-**Dogfood — run jensec on itself**
+**Dogfood â€” run jensec on itself**
 ```bash
 make scan
 ```
@@ -53,23 +53,23 @@ make scan
 ## Project structure
 
 ```
-kinga/
-├── cmd/jensec/          # binary entry point
-├── internal/
-│   ├── cli/             # Cobra commands (scan, report, detect, config)
-│   ├── config/          # config types and loader
-│   ├── detect/          # language and framework detection
-│   ├── installer/       # dependency install prompts
-│   ├── scan/
-│   │   ├── sast/        # Semgrep runner
-│   │   └── secrets/     # Gitleaks runner
-│   └── store/           # SQLite scan history
-└── pkg/
-    ├── output/          # terminal and JSON output
-    └── version/         # version info
+vigil/
+â”œâ”€â”€ cmd/jensec/          # binary entry point
+â”œâ”€â”€ internal/
+â”‚   â”œâ”€â”€ cli/             # Cobra commands (scan, report, detect, config)
+â”‚   â”œâ”€â”€ config/          # config types and loader
+â”‚   â”œâ”€â”€ detect/          # language and framework detection
+â”‚   â”œâ”€â”€ installer/       # dependency install prompts
+â”‚   â”œâ”€â”€ scan/
+â”‚   â”‚   â”œâ”€â”€ sast/        # Semgrep runner
+â”‚   â”‚   â””â”€â”€ secrets/     # Gitleaks runner
+â”‚   â””â”€â”€ store/           # SQLite scan history
+â””â”€â”€ pkg/
+    â”œâ”€â”€ output/          # terminal and JSON output
+    â””â”€â”€ version/         # version info
 ```
 
-Adding a new scanner follows the same pattern as `internal/scan/sast` and `internal/scan/secrets` — a `runner.go` with a `Run(path string, verbose bool) (*Result, error)` function and a `types.go` for the result types.
+Adding a new scanner follows the same pattern as `internal/scan/sast` and `internal/scan/secrets` â€” a `runner.go` with a `Run(path string, verbose bool) (*Result, error)` function and a `types.go` for the result types.
 
 ---
 

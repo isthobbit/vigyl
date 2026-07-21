@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/isthobbit/kinga/internal/detect"
+	"github.com/isthobbit/vigil/internal/detect"
 	"github.com/spf13/cobra"
 )
 
@@ -44,7 +44,7 @@ func runDetect(cmd *cobra.Command, args []string) error {
 }
 
 func printStack(stack *detect.Stack, path string) {
-	fmt.Printf("Stack Detection — %s\n\n", path)
+	fmt.Printf("Stack Detection â€” %s\n\n", path)
 
 	if len(stack.Languages) == 0 {
 		fmt.Println("  No source files detected.")
@@ -53,7 +53,7 @@ func printStack(stack *detect.Stack, path string) {
 
 	// Languages table.
 	fmt.Println("  Languages:")
-	fmt.Println("  " + strings.Repeat("─", 40))
+	fmt.Println("  " + strings.Repeat("â”€", 40))
 	for _, l := range stack.Languages {
 		bar := progressBar(l.Confidence, 20)
 		fmt.Printf("  %-14s  %s  %5.1f%%  (%d files)\n",
@@ -65,7 +65,7 @@ func printStack(stack *detect.Stack, path string) {
 	if len(stack.Frameworks) > 0 {
 		fmt.Println()
 		fmt.Println("  Frameworks detected:")
-		fmt.Println("  " + strings.Repeat("─", 40))
+		fmt.Println("  " + strings.Repeat("â”€", 40))
 		for _, f := range stack.Frameworks {
 			fmt.Printf("  %-16s  [%s]\n", f.Name, f.Language)
 		}
@@ -80,5 +80,5 @@ func progressBar(ratio float64, width int) string {
 	if filled > width {
 		filled = width
 	}
-	return "[" + strings.Repeat("█", filled) + strings.Repeat("░", width-filled) + "]"
+	return "[" + strings.Repeat("â–ˆ", filled) + strings.Repeat("â–‘", width-filled) + "]"
 }

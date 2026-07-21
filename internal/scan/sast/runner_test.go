@@ -3,7 +3,7 @@ package sast_test
 import (
 	"testing"
 
-	"github.com/isthobbit/kinga/internal/scan/sast"
+	"github.com/isthobbit/vigil/internal/scan/sast"
 )
 
 // goldenSASTOutput is a representative semgrep --json output with two findings.
@@ -49,7 +49,7 @@ func TestParseOutputForTest_WithFindings(t *testing.T) {
 		t.Fatalf("expected 2 findings, got %d", len(findings))
 	}
 
-	// First finding — ERROR → CRITICAL
+	// First finding â€” ERROR â†’ CRITICAL
 	f0 := findings[0]
 	if f0.RuleID != "python.lang.security.audit.eval-used.eval-used" {
 		t.Errorf("finding[0] RuleID: got %q", f0.RuleID)
@@ -64,7 +64,7 @@ func TestParseOutputForTest_WithFindings(t *testing.T) {
 		t.Errorf("finding[0] Start.Line: got %d, want 42", f0.Start.Line)
 	}
 
-	// Second finding — WARNING → HIGH
+	// Second finding â€” WARNING â†’ HIGH
 	f1 := findings[1]
 	if f1.Severity != "HIGH" {
 		t.Errorf("finding[1] Severity: got %q, want HIGH (WARNING normalised)", f1.Severity)
@@ -112,11 +112,11 @@ func TestSeverityNormalisation(t *testing.T) {
 		input   string
 		wantSev string
 	}{
-		// ERROR → CRITICAL
+		// ERROR â†’ CRITICAL
 		{`{"results":[{"check_id":"r","path":"f","start":{"line":1,"col":1,"offset":0},"end":{"line":1,"col":1,"offset":0},"extra":{"message":"m","severity":"ERROR","lines":"","metadata":{},"fix":""}}],"errors":[],"version":"1"}`, "CRITICAL"},
-		// WARNING → HIGH
+		// WARNING â†’ HIGH
 		{`{"results":[{"check_id":"r","path":"f","start":{"line":1,"col":1,"offset":0},"end":{"line":1,"col":1,"offset":0},"extra":{"message":"m","severity":"WARNING","lines":"","metadata":{},"fix":""}}],"errors":[],"version":"1"}`, "HIGH"},
-		// INFO → MEDIUM
+		// INFO â†’ MEDIUM
 		{`{"results":[{"check_id":"r","path":"f","start":{"line":1,"col":1,"offset":0},"end":{"line":1,"col":1,"offset":0},"extra":{"message":"m","severity":"INFO","lines":"","metadata":{},"fix":""}}],"errors":[],"version":"1"}`, "MEDIUM"},
 	}
 

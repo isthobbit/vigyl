@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/isthobbit/kinga/pkg/version"
+	"github.com/isthobbit/vigil/pkg/version"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -20,14 +20,14 @@ var (
 // rootCmd is the base command when called without any subcommands.
 var rootCmd = &cobra.Command{
 	Use:     "jensec",
-	Short:   "KINGA — offline-first security scanner for developers",
+	Short:   "vigil â€” offline-first security scanner for developers",
 	Version: version.Version,
 	Long: `
-╭─────────────────────────────────────────╮
-│  jensec · by KINGA                      │
-│  Offline-first DevSecOps scanner        │
-│  Built in Kenya for the world           │
-╰─────────────────────────────────────────╯
+â•­â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â•®
+â”‚  jensec Â· by vigil                      â”‚
+â”‚  Offline-first DevSecOps scanner        â”‚
+â”‚  Built in Kenya for the world           â”‚
+â•°â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â•¯
 
 Scan your code for vulnerabilities and leaked secrets.
 No cloud account required. Works offline.`,
@@ -45,7 +45,7 @@ func init() {
 	cobra.OnInitialize(initConfig)
 
 	// Persistent flags are available to every subcommand.
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default: $HOME/.kinga/config.yaml)")
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default: $HOME/.vigil/config.yaml)")
 	rootCmd.PersistentFlags().BoolVar(&jsonOut, "json", false, "output results as JSON")
 	rootCmd.PersistentFlags().BoolVar(&noColor, "no-color", false, "disable colored output")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "verbose output")
@@ -65,16 +65,16 @@ func initConfig() {
 			fmt.Fprintln(os.Stderr, "warning: could not find home directory:", err)
 			return
 		}
-		viper.AddConfigPath(fmt.Sprintf("%s/.kinga", home))
+		viper.AddConfigPath(fmt.Sprintf("%s/.vigil", home))
 		viper.SetConfigName("config")
 		viper.SetConfigType("yaml")
 	}
 
-	// Allow any config key to be overridden with a KINGA_ env var.
-	// e.g. KINGA_VERBOSE=true
-	viper.SetEnvPrefix("KINGA")
+	// Allow any config key to be overridden with a vigil_ env var.
+	// e.g. vigil_VERBOSE=true
+	viper.SetEnvPrefix("vigil")
 	viper.AutomaticEnv()
 
-	// Silently ignore missing config file — it's optional.
+	// Silently ignore missing config file â€” it's optional.
 	_ = viper.ReadInConfig()
 }

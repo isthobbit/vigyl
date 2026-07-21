@@ -5,11 +5,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/isthobbit/kinga/internal/scan/sast"
-	"github.com/isthobbit/kinga/internal/scan/secrets"
+	"github.com/isthobbit/vigil/internal/scan/sast"
+	"github.com/isthobbit/vigil/internal/scan/secrets"
 )
 
-// ANSI colour codes — disabled when noColor is true.
+// ANSI colour codes â€” disabled when noColor is true.
 const (
 	red    = "\033[31m"
 	yellow = "\033[33m"
@@ -45,7 +45,7 @@ func PrintSecretsResult(result *secrets.Result, noColor bool) {
 
 	for file, findings := range byFile {
 		fmt.Printf("  %s\n", colorize(noColor, cyan, file))
-		fmt.Println("  " + strings.Repeat("─", 60))
+		fmt.Println("  " + strings.Repeat("â”€", 60))
 
 		for _, f := range findings {
 			fmt.Printf("    %s  %s\n",
@@ -130,9 +130,9 @@ func wordWrap(text string, maxWidth int, indent string) string {
 
 // PrintScanHeader prints the scan banner.
 func PrintScanHeader(path string, scanners []string, noColor bool) {
-	fmt.Printf("%s\n", colorize(noColor, bold, "╭─────────────────────────────────────────╮"))
-	fmt.Printf("%s\n", colorize(noColor, bold, "│  jensec · by KINGA                      │"))
-	fmt.Printf("%s\n", colorize(noColor, bold, "╰─────────────────────────────────────────╯"))
+	fmt.Printf("%s\n", colorize(noColor, bold, "â•­â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â•®"))
+	fmt.Printf("%s\n", colorize(noColor, bold, "â”‚  jensec Â· by vigil                      â”‚"))
+	fmt.Printf("%s\n", colorize(noColor, bold, "â•°â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â•¯"))
 	fmt.Printf("\n   Path:     %s\n", path)
 	fmt.Printf("   Scanners: %s\n\n", strings.Join(scanners, ", "))
 }
@@ -174,7 +174,7 @@ func PrintSASTResult(result *sast.Result, noColor bool) {
 // PrintScanSummary prints the total finding counts and elapsed time.
 func PrintScanSummary(secretsCount, sastCount int, elapsed time.Duration, noColor bool) {
 	total := secretsCount + sastCount
-	fmt.Println(strings.Repeat("─", 50))
+	fmt.Println(strings.Repeat("â”€", 50))
 	fmt.Printf("  Total findings: %d  (secrets: %d, sast: %d)\n", total, secretsCount, sastCount)
 	fmt.Printf("  Elapsed:        %s\n\n", elapsed)
 }

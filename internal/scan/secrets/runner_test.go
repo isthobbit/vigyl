@@ -3,7 +3,7 @@ package secrets_test
 import (
 	"testing"
 
-	"github.com/isthobbit/kinga/internal/scan/secrets"
+	"github.com/isthobbit/vigil/internal/scan/secrets"
 )
 
 // goldenSecretsFindings is a representative gitleaks JSON output with two findings.

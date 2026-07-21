@@ -6,9 +6,9 @@ import (
 	"io"
 	"time"
 
-	"github.com/isthobbit/kinga/internal/scan/sast"
-	"github.com/isthobbit/kinga/internal/scan/secrets"
-	"github.com/isthobbit/kinga/internal/store"
+	"github.com/isthobbit/vigil/internal/scan/sast"
+	"github.com/isthobbit/vigil/internal/scan/secrets"
+	"github.com/isthobbit/vigil/internal/store"
 )
 
 // JSONReport is the top-level structure written when --json is passed.
@@ -160,7 +160,7 @@ func PrintStoredReport(scan *store.ScanRecord, findings []store.FindingRecord, n
 			f.Scanner,
 			f.File,
 		)
-		fmt.Printf("       Line %d · %s\n", f.Line, f.RuleID)
+		fmt.Printf("       Line %d Â· %s\n", f.Line, f.RuleID)
 		if f.Message != "" {
 			fmt.Printf("       %s\n", wordWrap(f.Message, 70, "       "))
 		}

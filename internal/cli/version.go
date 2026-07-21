@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"runtime"
 
-	"github.com/isthobbit/kinga/pkg/version"
+	"github.com/isthobbit/vigil/pkg/version"
 	"github.com/spf13/cobra"
 )
 

@@ -1,7 +1,7 @@
 # Binaries
 /jensec
 /jensec.exe
-kinga
+vigil
 *.exe
 *.out
 
@@ -10,7 +10,7 @@ kinga
 /bin/
 
 # Scan history and config
-.kinga/
+.vigil/
 *.db
 
 # Go

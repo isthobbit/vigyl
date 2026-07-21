@@ -5,10 +5,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/isthobbit/kinga/internal/config"
+	"github.com/isthobbit/vigil/internal/config"
 )
 
-// ── Defaults ──────────────────────────────────────────────────────────────────
+// â”€â”€ Defaults â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 func TestDefaults_FailOnIsHigh(t *testing.T) {
 	d := config.Defaults()
@@ -31,10 +31,10 @@ func TestDefaults_SemgrepRulesIsAuto(t *testing.T) {
 	}
 }
 
-// ── Load ─────────────────────────────────────────────────────────────────────
+// â”€â”€ Load â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 func TestLoad_NoConfigFile_ReturnsDefaults(t *testing.T) {
-	// Point at a directory with no config file — should succeed with defaults.
+	// Point at a directory with no config file â€” should succeed with defaults.
 	cfg, err := config.Load("")
 	if err != nil {
 		t.Fatalf("Load() with no config file returned error: %v", err)
@@ -87,7 +87,7 @@ func TestLoad_EnvVarOverridesFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Setenv("KINGA_SCAN_FAIL_ON", "critical")
+	t.Setenv("vigil_SCAN_FAIL_ON", "critical")
 
 	cfg, err := config.Load(cfgPath)
 	if err != nil {
@@ -98,7 +98,7 @@ func TestLoad_EnvVarOverridesFile(t *testing.T) {
 	}
 }
 
-// ── Severity threshold ────────────────────────────────────────────────────────
+// â”€â”€ Severity threshold â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 func TestMeetsSeverityThreshold(t *testing.T) {
 	tests := []struct {
@@ -125,10 +125,10 @@ func TestMeetsSeverityThreshold(t *testing.T) {
 	}
 }
 
-// ── Write ─────────────────────────────────────────────────────────────────────
+// â”€â”€ Write â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 func TestWrite_CreatesFileAndSetsKey(t *testing.T) {
-	// Override home so Write() doesn't touch the real ~/.kinga directory.
+	// Override home so Write() doesn't touch the real ~/.vigil directory.
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
 
@@ -136,7 +136,7 @@ func TestWrite_CreatesFileAndSetsKey(t *testing.T) {
 		t.Fatalf("Write() error: %v", err)
 	}
 
-	cfgPath := filepath.Join(dir, ".kinga", "config.yaml")
+	cfgPath := filepath.Join(dir, ".vigil", "config.yaml")
 	data, err := os.ReadFile(cfgPath)
 	if err != nil {
 		t.Fatalf("config file not created: %v", err)

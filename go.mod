@@ -1,4 +1,4 @@
-module github.com/isthobbit/kinga
+module github.com/isthobbit/vigil
 
 go 1.22
 

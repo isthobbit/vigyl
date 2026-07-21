@@ -10,7 +10,7 @@ on:
 
 jobs:
   security-scan:
-    name: jensec · KINGA Security Scan
+    name: jensec Â· vigil Security Scan
     runs-on: ubuntu-latest
 
     permissions:
@@ -27,7 +27,7 @@ jobs:
         with:
           go-version: "1.22"
 
-      # ── Install dependencies ──────────────────────────────────────────────
+      # â”€â”€ Install dependencies â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
       - name: Install Gitleaks
         run: |
@@ -39,13 +39,13 @@ jobs:
           pip3 install semgrep --quiet
           semgrep --version
 
-      # ── Build jensec from source ─────────────────────────────────────────
+      # â”€â”€ Build jensec from source â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       - name: Build jensec
         run: |
           go build -o /usr/local/bin/jensec ./cmd/jensec
           jensec --version
 
-      # ── Run scans ─────────────────────────────────────────────────────────
+      # â”€â”€ Run scans â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
       - name: Run secrets scan
         run: jensec scan secrets . --fail-on high --json --output secrets-report.json
@@ -53,7 +53,7 @@ jobs:
       - name: Run SAST scan
         run: jensec scan sast . --fail-on high --json --output sast-report.json
 
-      # ── Upload reports as artifacts ───────────────────────────────────────
+      # â”€â”€ Upload reports as artifacts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
       - name: Upload scan reports
         if: always() # upload even if a scan step fails

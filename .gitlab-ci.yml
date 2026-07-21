@@ -1,10 +1,10 @@
-# jensec · KINGA Security Scan — GitLab CI
+# jensec Â· vigil Security Scan â€” GitLab CI
 #
 # Add this file to your repo as .gitlab-ci.yml
 # or include it from your existing pipeline:
 #
 #   include:
-#     - project: 'isthobbit/kinga'
+#     - project: 'isthobbit/vigil'
 #       file: '.gitlab-ci.yml'
 
 stages:
@@ -29,7 +29,7 @@ security-scan:
     - semgrep --version
 
     # Install jensec
-    - go install github.com/isthobbit/kinga/cmd/jensec@latest
+    - go install github.com/isthobbit/vigil/cmd/jensec@latest
 
   script:
     - jensec scan secrets . --fail-on $JENGSEC_FAIL_ON --json --output secrets-report.json

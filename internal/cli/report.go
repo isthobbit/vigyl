@@ -5,8 +5,8 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/isthobbit/kinga/internal/store"
-	"github.com/isthobbit/kinga/pkg/output"
+	"github.com/isthobbit/vigil/internal/store"
+	"github.com/isthobbit/vigil/pkg/output"
 	"github.com/spf13/cobra"
 )
 
@@ -35,7 +35,7 @@ func runReport(cmd *cobra.Command, args []string) error {
 	}
 	defer db.Close()
 
-	// --list → print a summary table of recent scans and exit.
+	// --list â†’ print a summary table of recent scans and exit.
 	if listScans {
 		return printScanList(db)
 	}
@@ -45,7 +45,7 @@ func runReport(cmd *cobra.Command, args []string) error {
 	if len(args) == 1 {
 		id, err := strconv.ParseInt(args[0], 10, 64)
 		if err != nil {
-			return fmt.Errorf("invalid scan ID %q — must be a number", args[0])
+			return fmt.Errorf("invalid scan ID %q â€” must be a number", args[0])
 		}
 		scan, err = db.ScanByID(id)
 		if err != nil {
@@ -90,7 +90,7 @@ func printScanList(db *store.DB) error {
 	}
 
 	fmt.Printf("%-6s  %-19s  %-10s  %-8s  %s\n", "ID", "DATE", "SCANNERS", "FINDINGS", "PATH")
-	fmt.Println("──────  ───────────────────  ──────────  ────────  ────────────────────────────")
+	fmt.Println("â”€â”€â”€â”€â”€â”€  â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€  â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€  â”€â”€â”€â”€â”€â”€â”€â”€  â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€")
 
 	for _, s := range scans {
 		fmt.Printf("%-6d  %-19s  %-10s  %-8d  %s\n",

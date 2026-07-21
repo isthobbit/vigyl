@@ -7,12 +7,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/isthobbit/kinga/internal/config"
-	"github.com/isthobbit/kinga/internal/installer"
-	"github.com/isthobbit/kinga/internal/scan/sast"
-	"github.com/isthobbit/kinga/internal/scan/secrets"
-	"github.com/isthobbit/kinga/internal/store"
-	"github.com/isthobbit/kinga/pkg/output"
+	"github.com/isthobbit/vigil/internal/config"
+	"github.com/isthobbit/vigil/internal/installer"
+	"github.com/isthobbit/vigil/internal/scan/sast"
+	"github.com/isthobbit/vigil/internal/scan/secrets"
+	"github.com/isthobbit/vigil/internal/store"
+	"github.com/isthobbit/vigil/pkg/output"
 	"github.com/spf13/cobra"
 )
 
@@ -64,7 +64,7 @@ func resolvePath(args []string) (string, error) {
 	return os.Getwd()
 }
 
-// ── Scan commands ─────────────────────────────────────────────────────────────
+// â”€â”€ Scan commands â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 func runScanAll(cmd *cobra.Command, args []string) error {
 	path, err := resolvePath(args)
@@ -216,7 +216,7 @@ func runScanSecrets(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 func loadConfig() *config.Config {
 	cfg, err := config.Load(cfgFile)
@@ -245,7 +245,7 @@ func shouldFail(threshold string, s *secrets.Result, a *sast.Result) bool {
 // highestSeverity returns the most severe finding level across both result sets.
 // Secrets findings have no per-finding severity; all detected secrets are treated
 // as HIGH (a leaked credential is always significant). This means --fail-on critical
-// will NOT trigger on secrets findings — use --fail-on high or lower for that.
+// will NOT trigger on secrets findings â€” use --fail-on high or lower for that.
 func highestSeverity(s *secrets.Result, a *sast.Result) string {
 	best := ""
 	if s != nil && len(s.Findings) > 0 {
@@ -330,7 +330,7 @@ func buildFindingRecords(s *secrets.Result, a *sast.Result) []store.FindingRecor
 			records = append(records, store.FindingRecord{
 				Scanner: "secrets",
 				// Gitleaks does not emit per-finding severity; we treat all
-				// detected secrets as HIGH — a leaked credential is always
+				// detected secrets as HIGH â€” a leaked credential is always
 				// significant regardless of entropy. Future versions may
 				// introduce per-rule overrides via a custom gitleaks config.
 				Severity: "HIGH",

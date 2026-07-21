@@ -35,7 +35,7 @@ func runConfigView(cmd *cobra.Command, args []string) error {
 	settings := viper.AllSettings()
 	if len(settings) == 0 {
 		fmt.Println("No configuration found. Using defaults.")
-		fmt.Println("Config file location: ~/.kinga/config.yaml")
+		fmt.Println("Config file location: ~/.vigil/config.yaml")
 		return nil
 	}
 	fmt.Println("Current configuration:")
@@ -50,7 +50,7 @@ func runConfigSet(cmd *cobra.Command, args []string) error {
 	viper.Set(key, value)
 
 	if err := viper.WriteConfig(); err != nil {
-		// Config file may not exist yet — try creating it.
+		// Config file may not exist yet â€” try creating it.
 		if err := viper.SafeWriteConfig(); err != nil {
 			return fmt.Errorf("could not write config: %w", err)
 		}
