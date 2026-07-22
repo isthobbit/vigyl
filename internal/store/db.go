@@ -172,6 +172,97 @@ func (db *DB) SaveDependencyFindings(scanID int64, findings []DepFindingRecord) 
 	return tx.Commit()
 }
 
+// SaveCorrelations persists correlation records for a scan.
+func (db *DB) SaveCorrelations(scanID int64, correlations []CorrelationRecord) error {
+	if len(correlations) == 0 {
+		return nil
+	}
+
+	tx, err := db.conn.Begin()
+	if err != nil {
+		return fmt.Errorf("could not begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	stmt, err := tx.Prepare(`
+		INSERT INTO correlations (scan_id, code_finding_id, dep_finding_id, reason, correlation_score, directional, source_finding_id, target_finding_id)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+	`)
+	if err != nil {
+		return fmt.Errorf("could not prepare correlation insert: %w", err)
+	}
+	defer stmt.Close()
+
+	for _, c := range correlations {
+		directional := 0
+		if c.Directional {
+			directional = 1
+		}
+		if _, err := stmt.Exec(
+			scanID,
+			c.CodeFindingID,
+			c.DepFindingID,
+			c.Reason,
+			c.CorrelationScore,
+			directional,
+			c.SourceFindingID,
+			c.TargetFindingID,
+		); err != nil {
+			return fmt.Errorf("could not insert correlation: %w", err)
+		}
+	}
+
+	return tx.Commit()
+}
+
+// SaveRiskScores persists file-level, package-level, and overall risk scores.
+func (db *DB) SaveRiskScores(scanID int64, fileScores, pkgScores []RiskScoreRecord, overall float64) error {
+	tx, err := db.conn.Begin()
+	if err != nil {
+		return fmt.Errorf("could not begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	stmt, err := tx.Prepare(`
+		INSERT INTO risk_scores (scan_id, file, package, score, contributing_finding_count)
+		VALUES (?, ?, ?, ?, ?)
+	`)
+	if err != nil {
+		return fmt.Errorf("could not prepare risk score insert: %w", err)
+	}
+	defer stmt.Close()
+
+	// Insert file-level scores.
+	for _, s := range fileScores {
+		if _, err := stmt.Exec(scanID, s.File, nil, s.Score, s.ContributingFindingCount); err != nil {
+			return fmt.Errorf("could not insert file risk score: %w", err)
+		}
+	}
+
+	// Insert package-level scores.
+	for _, s := range pkgScores {
+		if _, err := stmt.Exec(scanID, nil, s.Package, s.Score, s.ContributingFindingCount); err != nil {
+			return fmt.Errorf("could not insert package risk score: %w", err)
+		}
+	}
+
+	// Insert overall score (both file and package are null).
+	if _, err := stmt.Exec(scanID, nil, nil, overall, 0); err != nil {
+		return fmt.Errorf("could not insert overall risk score: %w", err)
+	}
+
+	return tx.Commit()
+}
+
+// UpdateScanRiskScore updates the overall risk_score on the scans table.
+func (db *DB) UpdateScanRiskScore(scanID int64, score float64) error {
+	_, err := db.conn.Exec(
+		`UPDATE scans SET risk_score = ? WHERE id = ?`,
+		score, scanID,
+	)
+	return err
+}
+
 // LatestScan returns the most recent scan record, or nil if none exist.
 func (db *DB) LatestScan() (*ScanRecord, error) {
 	row := db.conn.QueryRow(`
