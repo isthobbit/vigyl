@@ -10,6 +10,7 @@ import (
 	"github.com/isthobbit/vigil/internal/config"
 	"github.com/isthobbit/vigil/internal/correlate"
 	"github.com/isthobbit/vigil/internal/installer"
+	"github.com/isthobbit/vigil/internal/recommend"
 	"github.com/isthobbit/vigil/internal/scan/deps/osv"
 	"github.com/isthobbit/vigil/internal/scan/deps/trivy"
 	"github.com/isthobbit/vigil/internal/scan/sast"
@@ -406,7 +407,7 @@ func persistScan(path, scanners string, startedAt, endedAt time.Time, s *secrets
 	}
 
 	// Run the correlation engine.
-	engine := correlate.New(db, nil) // nil = use default weights
+	engine := correlate.New(db, nil)
 	codeRecs, _ := db.CodeFindingsForScan(scanID)
 	depRecs, _ := db.DepFindingsForScan(scanID)
 	if err := engine.Run(correlate.Input{
@@ -415,6 +416,13 @@ func persistScan(path, scanners string, startedAt, endedAt time.Time, s *secrets
 		DepFindings:  depRecs,
 	}); err != nil {
 		fmt.Fprintf(os.Stderr, "WARNING: Correlation engine error: %v\n", err)
+	}
+
+	// Generate and display recommendations.
+	correlationRecs, _ := db.CorrelationsForScan(scanID)
+	recs := recommend.Generate(correlationRecs, codeRecs, depRecs)
+	if !jsonOut && len(recs) > 0 {
+		output.PrintRecommendations(recs, noColor)
 	}
 
 	if verbose {

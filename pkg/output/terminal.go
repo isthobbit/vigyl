@@ -5,11 +5,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/isthobbit/vigil/internal/recommend"
 	"github.com/isthobbit/vigil/internal/scan/sast"
 	"github.com/isthobbit/vigil/internal/scan/secrets"
 )
 
-// ANSI colour codes â€” disabled when noColor is true.
+// ANSI colour codes — disabled when noColor is true.
 const (
 	red    = "\033[31m"
 	yellow = "\033[33m"
@@ -37,7 +38,6 @@ func PrintSecretsResult(result *secrets.Result, noColor bool) {
 		return
 	}
 
-	// Group findings by file for readability.
 	byFile := make(map[string][]secrets.Finding)
 	for _, f := range result.Findings {
 		byFile[f.File] = append(byFile[f.File], f)
@@ -45,7 +45,7 @@ func PrintSecretsResult(result *secrets.Result, noColor bool) {
 
 	for file, findings := range byFile {
 		fmt.Printf("  %s\n", colorize(noColor, cyan, file))
-		fmt.Println("  " + strings.Repeat("â”€", 60))
+		fmt.Println("  " + strings.Repeat("─", 60))
 
 		for _, f := range findings {
 			fmt.Printf("    %s  %s\n",
@@ -54,7 +54,6 @@ func PrintSecretsResult(result *secrets.Result, noColor bool) {
 			)
 			fmt.Printf("    Rule:    %s\n", f.RuleID)
 			fmt.Printf("    Line:    %d\n", f.StartLine)
-			// Print the match but redact the actual secret value.
 			fmt.Printf("    Match:   %s\n", redactSecret(f.Match, f.Secret))
 			if f.Commit != "" {
 				fmt.Printf("    Commit:  %s (%s)\n", f.Commit[:min(8, len(f.Commit))], f.Author)
@@ -71,8 +70,7 @@ func PrintSecretsResult(result *secrets.Result, noColor bool) {
 	)
 }
 
-// redactSecret replaces the actual secret value in the match string with stars,
-// so we show context without exposing the credential in terminal output.
+// redactSecret replaces the actual secret value in the match string with stars.
 func redactSecret(match, secret string) string {
 	if secret == "" || match == "" {
 		return match
@@ -90,8 +88,8 @@ func plural(n int) string {
 
 // severityColour returns an ANSI colour code for a severity level.
 func severityColour(severity string) string {
-	switch severity {
-	case "CRITICAL":
+	switch strings.ToUpper(severity) {
+	case "CRITICAL", "SEVERE":
 		return red
 	case "HIGH":
 		return red
@@ -130,9 +128,9 @@ func wordWrap(text string, maxWidth int, indent string) string {
 
 // PrintScanHeader prints the scan banner.
 func PrintScanHeader(path string, scanners []string, noColor bool) {
-	fmt.Printf("%s\n", colorize(noColor, bold, "â•­â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â•®"))
-	fmt.Printf("%s\n", colorize(noColor, bold, "â”‚  jensec Â· by vigil                      â”‚"))
-	fmt.Printf("%s\n", colorize(noColor, bold, "â•°â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â•¯"))
+	fmt.Printf("%s\n", colorize(noColor, bold, "╭─────────────────────────────────────────╮"))
+	fmt.Printf("%s\n", colorize(noColor, bold, "│  jensec · by vigil                      │"))
+	fmt.Printf("%s\n", colorize(noColor, bold, "╰─────────────────────────────────────────╯"))
 	fmt.Printf("\n   Path:     %s\n", path)
 	fmt.Printf("   Scanners: %s\n\n", strings.Join(scanners, ", "))
 }
@@ -174,7 +172,47 @@ func PrintSASTResult(result *sast.Result, noColor bool) {
 // PrintScanSummary prints the total finding counts and elapsed time.
 func PrintScanSummary(secretsCount, sastCount int, elapsed time.Duration, noColor bool) {
 	total := secretsCount + sastCount
-	fmt.Println(strings.Repeat("â”€", 50))
+	fmt.Println(strings.Repeat("─", 50))
 	fmt.Printf("  Total findings: %d  (secrets: %d, sast: %d)\n", total, secretsCount, sastCount)
 	fmt.Printf("  Elapsed:        %s\n\n", elapsed)
+}
+
+// PrintRecommendations renders the prioritised recommendation list to stdout.
+func PrintRecommendations(recs []recommend.Recommendation, noColor bool) {
+	if len(recs) == 0 {
+		return
+	}
+
+	fmt.Printf("\n%s\n\n", colorize(noColor, bold, "Recommendations"))
+
+	for i, r := range recs {
+		sevColor := severityColour(r.Priority)
+		effortLabel := effortBadge(r.Effort)
+
+		fmt.Printf("  %d. %s  %s  %s\n",
+			i+1,
+			colorize(noColor, sevColor, r.Priority),
+			colorize(noColor, yellow, effortLabel),
+			colorize(noColor, bold, r.Title),
+		)
+		fmt.Printf("     %s\n", colorize(noColor, bold, "Why:"))
+		fmt.Printf("     %s\n", wordWrap(r.Context, 72, "     "))
+		fmt.Printf("     %s\n", colorize(noColor, bold, "Do:"))
+		fmt.Printf("     %s\n", wordWrap(r.Action, 72, "     "))
+		fmt.Println()
+	}
+}
+
+// effortBadge returns a short label for the effort level.
+func effortBadge(e recommend.Effort) string {
+	switch e {
+	case recommend.EffortImmediate:
+		return "[IMMEDIATE]"
+	case recommend.EffortShortTerm:
+		return "[SHORT TERM]"
+	case recommend.EffortLongTerm:
+		return "[LONG TERM]"
+	default:
+		return ""
+	}
 }
