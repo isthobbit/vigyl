@@ -16,10 +16,6 @@ type DB struct {
 }
 
 // Open opens (or creates) the jensec SQLite database.
-//
-// If dbPath is non-empty it is used as-is (honouring storage.db_path from the
-// config file). Otherwise the default location ~/.kinga/jensec.db is used.
-// The parent directory is created if it does not exist.
 func Open(dbPath ...string) (*DB, error) {
 	var resolvedPath string
 	if len(dbPath) > 0 && dbPath[0] != "" {
@@ -42,7 +38,6 @@ func Open(dbPath ...string) (*DB, error) {
 		return nil, fmt.Errorf("could not open database: %w", err)
 	}
 
-	// SQLite performs best with a single writer connection.
 	conn.SetMaxOpenConns(1)
 
 	db := &DB{conn: conn}
@@ -61,7 +56,6 @@ func (db *DB) Close() error {
 
 // migrate applies the schema and runs any pending version upgrades.
 func (db *DB) migrate() error {
-	// Read the current schema version (0 = fresh database).
 	var current int
 	db.conn.QueryRow(`
 		SELECT COALESCE(MAX(version), 0)
@@ -71,7 +65,6 @@ func (db *DB) migrate() error {
 
 	switch {
 	case current == 0:
-		// Fresh database — apply v2 schema and stamp version.
 		if _, err := db.conn.Exec(schemaV2); err != nil {
 			return fmt.Errorf("applying v2 schema: %w", err)
 		}
@@ -79,7 +72,6 @@ func (db *DB) migrate() error {
 		return err
 
 	case current < 2:
-		// Existing v1 database — run the v1→v2 migration.
 		if err := db.applyMigration(migrateV1ToV2); err != nil {
 			return fmt.Errorf("migrating v1 to v2: %w", err)
 		}
@@ -88,8 +80,7 @@ func (db *DB) migrate() error {
 	return nil
 }
 
-// applyMigration executes a multi-statement migration string inside a
-// transaction, rolling back on any error.
+// applyMigration executes a multi-statement migration string inside a transaction.
 func (db *DB) applyMigration(migration string) error {
 	tx, err := db.conn.Begin()
 	if err != nil {
@@ -104,8 +95,7 @@ func (db *DB) applyMigration(migration string) error {
 	return tx.Commit()
 }
 
-// SaveScan persists a complete scan run and its code findings in a single
-// transaction. Returns the ID assigned to the scan row.
+// SaveScan persists a complete scan run and its code findings in a single transaction.
 func (db *DB) SaveScan(path, scanners string, startedAt, endedAt time.Time, findings []CodeFindingRecord) (int64, error) {
 	tx, err := db.conn.Begin()
 	if err != nil {
@@ -113,7 +103,6 @@ func (db *DB) SaveScan(path, scanners string, startedAt, endedAt time.Time, find
 	}
 	defer tx.Rollback()
 
-	// Insert scan record.
 	res, err := tx.Exec(
 		`INSERT INTO scans (scan_path, started_at, ended_at, scanners, total) VALUES (?, ?, ?, ?, ?)`,
 		path, startedAt.UTC(), endedAt.UTC(), scanners, len(findings),
@@ -127,7 +116,6 @@ func (db *DB) SaveScan(path, scanners string, startedAt, endedAt time.Time, find
 		return 0, err
 	}
 
-	// Insert each code finding.
 	stmt, err := tx.Prepare(`
 		INSERT INTO code_findings (scan_id, scanner, severity, rule_id, file, line, message, raw_match)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -232,21 +220,18 @@ func (db *DB) SaveRiskScores(scanID int64, fileScores, pkgScores []RiskScoreReco
 	}
 	defer stmt.Close()
 
-	// Insert file-level scores.
 	for _, s := range fileScores {
 		if _, err := stmt.Exec(scanID, s.File, nil, s.Score, s.ContributingFindingCount); err != nil {
 			return fmt.Errorf("could not insert file risk score: %w", err)
 		}
 	}
 
-	// Insert package-level scores.
 	for _, s := range pkgScores {
 		if _, err := stmt.Exec(scanID, nil, s.Package, s.Score, s.ContributingFindingCount); err != nil {
 			return fmt.Errorf("could not insert package risk score: %w", err)
 		}
 	}
 
-	// Insert overall score (both file and package are null).
 	if _, err := stmt.Exec(scanID, nil, nil, overall, 0); err != nil {
 		return fmt.Errorf("could not insert overall risk score: %w", err)
 	}
@@ -261,6 +246,39 @@ func (db *DB) UpdateScanRiskScore(scanID int64, score float64) error {
 		score, scanID,
 	)
 	return err
+}
+
+// CorrelationsForScan returns all correlations for a given scan ID.
+func (db *DB) CorrelationsForScan(scanID int64) ([]CorrelationRecord, error) {
+	rows, err := db.conn.Query(`
+		SELECT id, scan_id, code_finding_id, dep_finding_id, reason, correlation_score,
+		       directional, source_finding_id, target_finding_id
+		FROM correlations
+		WHERE scan_id = ?
+		ORDER BY correlation_score DESC
+	`, scanID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var correlations []CorrelationRecord
+	for rows.Next() {
+		var c CorrelationRecord
+		var directional int
+		if err := rows.Scan(
+			&c.ID, &c.ScanID,
+			&c.CodeFindingID, &c.DepFindingID,
+			&c.Reason, &c.CorrelationScore,
+			&directional,
+			&c.SourceFindingID, &c.TargetFindingID,
+		); err != nil {
+			return nil, err
+		}
+		c.Directional = directional == 1
+		correlations = append(correlations, c)
+	}
+	return correlations, rows.Err()
 }
 
 // LatestScan returns the most recent scan record, or nil if none exist.
