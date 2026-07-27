@@ -16,6 +16,7 @@ import (
 	"github.com/isthobbit/vigil/internal/scan/sast"
 	"github.com/isthobbit/vigil/internal/scan/secrets"
 	"github.com/isthobbit/vigil/internal/store"
+	"github.com/isthobbit/vigil/internal/trends"
 	"github.com/isthobbit/vigil/pkg/output"
 	"github.com/spf13/cobra"
 )
@@ -423,6 +424,12 @@ func persistScan(path, scanners string, startedAt, endedAt time.Time, s *secrets
 	recs := recommend.Generate(correlationRecs, codeRecs, depRecs)
 	if !jsonOut && len(recs) > 0 {
 		output.PrintRecommendations(recs, noColor)
+	}
+
+	// Run trend analysis.
+	trendCfg := trends.DefaultConfig()
+	if report, err := trends.Analyse(db, scanID, path, trendCfg); err == nil && !jsonOut {
+		trends.Print(report, noColor)
 	}
 
 	if verbose {

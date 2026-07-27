@@ -373,6 +373,31 @@ func (db *DB) RecentScans(n int) ([]ScanRecord, error) {
 	return scans, rows.Err()
 }
 
+// RecentScansForPath returns the n most recent scan records for a specific path.
+func (db *DB) RecentScansForPath(path string, n int) ([]ScanRecord, error) {
+	rows, err := db.conn.Query(`
+		SELECT id, scan_path, started_at, ended_at, scanners, total, risk_score
+		FROM scans
+		WHERE scan_path = ?
+		ORDER BY started_at DESC
+		LIMIT ?
+	`, path, n)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var scans []ScanRecord
+	for rows.Next() {
+		var s ScanRecord
+		if err := rows.Scan(&s.ID, &s.ScanPath, &s.StartedAt, &s.EndedAt, &s.Scanners, &s.Total, &s.RiskScore); err != nil {
+			return nil, err
+		}
+		scans = append(scans, s)
+	}
+	return scans, rows.Err()
+}
+
 func scanFromRow(row *sql.Row) (*ScanRecord, error) {
 	var s ScanRecord
 	err := row.Scan(&s.ID, &s.ScanPath, &s.StartedAt, &s.EndedAt, &s.Scanners, &s.Total, &s.RiskScore)
