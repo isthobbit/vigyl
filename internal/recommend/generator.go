@@ -53,17 +53,30 @@ func Generate(
 		}
 	}
 
+	// Deduplicate — keep only the first recommendation per rule+title combination.
+	// This prevents the same file appearing multiple times for the same rule
+	// when there are many finding pairs (e.g. 7 findings = 6 correlations = 6 recs).
+	seen := make(map[string]bool)
+	var deduped []Recommendation
+	for _, r := range recs {
+		key := r.Rule + "|" + r.Title
+		if !seen[key] {
+			seen[key] = true
+			deduped = append(deduped, r)
+		}
+	}
+
 	// Sort by effort (IMMEDIATE first) then by priority (CRITICAL before HIGH etc).
-	sort.Slice(recs, func(i, j int) bool {
-		ei := effortOrder[recs[i].Effort]
-		ej := effortOrder[recs[j].Effort]
+	sort.Slice(deduped, func(i, j int) bool {
+		ei := effortOrder[deduped[i].Effort]
+		ej := effortOrder[deduped[j].Effort]
 		if ei != ej {
 			return ei < ej
 		}
-		return priorityOrder(recs[i].Priority) > priorityOrder(recs[j].Priority)
+		return priorityOrder(deduped[i].Priority) > priorityOrder(deduped[j].Priority)
 	})
 
-	return recs
+	return deduped
 }
 
 // ── Per-rule recommendation generators ───────────────────────────────────────
