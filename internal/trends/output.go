@@ -2,6 +2,7 @@ package trends
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -34,14 +35,30 @@ func Print(report *Report, noColor bool) {
 	fmt.Printf("  Correlations:%s\n", signedInt(report.CorrelationDelta))
 	fmt.Println()
 
-	// Recurring findings.
+	// Recurring findings — sort by most persistent first, cap at 10.
 	if len(report.RecurringFindings) > 0 {
 		fmt.Printf("  %s\n", colorize(noColor, "\033[33m", fmt.Sprintf(
 			"⚠  %d finding(s) have persisted across multiple scans:",
 			len(report.RecurringFindings),
 		)))
-		for _, r := range report.RecurringFindings {
+
+		// Sort by consecutive scan count descending.
+		sorted := make([]RecurringFinding, len(report.RecurringFindings))
+		copy(sorted, report.RecurringFindings)
+		sort.Slice(sorted, func(i, j int) bool {
+			return sorted[i].ConsecutiveScans > sorted[j].ConsecutiveScans
+		})
+
+		// Show top 10 only.
+		shown := sorted
+		if len(shown) > 10 {
+			shown = shown[:10]
+		}
+		for _, r := range shown {
 			fmt.Printf("     [%s] %s (%d scans)\n", r.Scanner, r.Description, r.ConsecutiveScans)
+		}
+		if len(report.RecurringFindings) > 10 {
+			fmt.Printf("     ... and %d more.\n", len(report.RecurringFindings)-10)
 		}
 		fmt.Println()
 		fmt.Printf("  Review whether these are accepted risks — if so, add them to your ignore list.\n\n")
