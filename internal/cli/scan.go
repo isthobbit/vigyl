@@ -428,7 +428,12 @@ func persistScan(path, scanners string, startedAt, endedAt time.Time, s *secrets
 
 	// Run trend analysis.
 	trendCfg := trends.DefaultConfig()
-	if report, err := trends.Analyse(db, scanID, path, trendCfg); err == nil && !jsonOut {
+	currentScan, _ := db.ScanByID(scanID)
+	currentScore := 0.0
+	if currentScan != nil {
+		currentScore = currentScan.RiskScore
+	}
+	if report, err := trends.Analyse(db, scanID, path, currentScore, trendCfg); err == nil && !jsonOut {
 		trends.Print(report, noColor)
 	}
 

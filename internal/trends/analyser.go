@@ -6,7 +6,7 @@ import (
 
 // Analyse compares the current scan against previous scans of the same path
 // and returns a trend report. Returns nil if there are not enough scans.
-func Analyse(db *store.DB, currentScanID int64, scanPath string, cfg Config) (*Report, error) {
+func Analyse(db *store.DB, currentScanID int64, scanPath string, currentScore float64, cfg Config) (*Report, error) {
 	// Fetch recent scans for this path, excluding the current scan.
 	scans, err := db.RecentScansForPath(scanPath, cfg.LookbackScans+1)
 	if err != nil {
@@ -26,10 +26,12 @@ func Analyse(db *store.DB, currentScanID int64, scanPath string, cfg Config) (*R
 		return nil, nil
 	}
 
-	// Get current scan record.
-	current, err := db.ScanByID(currentScanID)
-	if err != nil || current == nil {
-		return nil, err
+	// Use the passed-in current score directly — avoids a race where the
+	// risk_score column may not be written yet when ScanByID is called.
+	current := &store.ScanRecord{
+		ID:        currentScanID,
+		ScanPath:  scanPath,
+		RiskScore: currentScore,
 	}
 
 	// Compare current against the most recent previous scan.
@@ -138,8 +140,6 @@ func findRecurring(
 	currentCode []store.CodeFindingRecord,
 	currentDep []store.DepFindingRecord,
 ) []RecurringFinding {
-	// Track how many consecutive scans each finding key has appeared in.
-	// Start with 1 (the current scan) for each current finding.
 	consecutiveCount := make(map[string]int)
 	for k := range currentCodeKeys {
 		consecutiveCount[k] = 1
@@ -148,7 +148,6 @@ func findRecurring(
 		consecutiveCount[k] = 1
 	}
 
-	// Walk through previous scans in order (most recent first).
 	for _, prev := range previous {
 		prevCode, _ := db.CodeFindingsForScan(prev.ID)
 		prevDep, _ := db.DepFindingsForScan(prev.ID)
@@ -161,7 +160,6 @@ func findRecurring(
 			prevKeys[depKey(f.Scanner, f.Package, f.Version, f.CVEID)] = true
 		}
 
-		// Only increment if the finding was in this previous scan too.
 		for k := range consecutiveCount {
 			if prevKeys[k] {
 				consecutiveCount[k]++
@@ -169,7 +167,6 @@ func findRecurring(
 		}
 	}
 
-	// Build description lookup from current findings.
 	descByKey := make(map[string]string)
 	scannerByKey := make(map[string]string)
 	for _, f := range currentCode {
