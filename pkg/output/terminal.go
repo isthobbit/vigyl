@@ -5,9 +5,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/isthobbit/vigil/internal/recommend"
-	"github.com/isthobbit/vigil/internal/scan/sast"
-	"github.com/isthobbit/vigil/internal/scan/secrets"
+	"github.com/isthobbit/vigyl/internal/recommend"
+	"github.com/isthobbit/vigyl/internal/scan/sast"
+	"github.com/isthobbit/vigyl/internal/scan/secrets"
 )
 
 // ANSI colour codes — disabled when noColor is true.
@@ -129,7 +129,7 @@ func wordWrap(text string, maxWidth int, indent string) string {
 // PrintScanHeader prints the scan banner.
 func PrintScanHeader(path string, scanners []string, noColor bool) {
 	fmt.Printf("%s\n", colorize(noColor, bold, "╭─────────────────────────────────────────╮"))
-	fmt.Printf("%s\n", colorize(noColor, bold, "│  jensec · by vigil                      │"))
+	fmt.Printf("%s\n", colorize(noColor, bold, "│  jensec · by vigyl                      │"))
 	fmt.Printf("%s\n", colorize(noColor, bold, "╰─────────────────────────────────────────╯"))
 	fmt.Printf("\n   Path:     %s\n", path)
 	fmt.Printf("   Scanners: %s\n\n", strings.Join(scanners, ", "))

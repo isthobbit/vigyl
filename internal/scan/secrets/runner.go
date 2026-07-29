@@ -60,7 +60,7 @@ func Run(scanPath string, verbose bool, timeout time.Duration, excludePaths []st
 	}
 
 	// 3. Write the JSON report to a temp file so we can parse it.
-	reportFile, err := os.CreateTemp("", "vigil-secrets-*.json")
+	reportFile, err := os.CreateTemp("", "vigyl-secrets-*.json")
 	if err != nil {
 		return nil, fmt.Errorf("could not create temp report file: %w", err)
 	}
@@ -80,7 +80,7 @@ func Run(scanPath string, verbose bool, timeout time.Duration, excludePaths []st
 
 	// write a temporary .gitleaksignore file for excluded paths
 	if len(excludePaths) > 0 {
-		ignoreFile, err := os.CreateTemp("", "vigil-gitleaksignore-*")
+		ignoreFile, err := os.CreateTemp("", "vigyl-gitleaksignore-*")
 		if err == nil {
 			for _, p := range excludePaths {
 				fmt.Fprintln(ignoreFile, p)

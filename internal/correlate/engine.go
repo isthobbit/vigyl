@@ -5,7 +5,7 @@ import (
 	"math"
 	"strings"
 
-	"github.com/isthobbit/vigil/internal/store"
+	"github.com/isthobbit/vigyl/internal/store"
 )
 
 // Engine runs correlation rules against a set of scan findings and

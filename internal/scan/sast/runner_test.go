@@ -3,7 +3,7 @@ package sast_test
 import (
 	"testing"
 
-	"github.com/isthobbit/vigil/internal/scan/sast"
+	"github.com/isthobbit/vigyl/internal/scan/sast"
 )
 
 // goldenSASTOutput is a representative semgrep --json output with two findings.

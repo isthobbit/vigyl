@@ -1,7 +1,7 @@
 # Binaries
 /jensec
 /jensec.exe
-vigil
+vigyl
 *.exe
 *.out
 
@@ -10,7 +10,7 @@ vigil
 /bin/
 
 # Scan history and config
-.vigil/
+.vigyl/
 *.db
 
 # Go

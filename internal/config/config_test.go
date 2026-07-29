@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/isthobbit/vigil/internal/config"
+	"github.com/isthobbit/vigyl/internal/config"
 )
 
 // â”€â”€ Defaults â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -87,7 +87,7 @@ func TestLoad_EnvVarOverridesFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Setenv("vigil_SCAN_FAIL_ON", "critical")
+	t.Setenv("vigyl_SCAN_FAIL_ON", "critical")
 
 	cfg, err := config.Load(cfgPath)
 	if err != nil {
@@ -128,7 +128,7 @@ func TestMeetsSeverityThreshold(t *testing.T) {
 // â”€â”€ Write â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 func TestWrite_CreatesFileAndSetsKey(t *testing.T) {
-	// Override home so Write() doesn't touch the real ~/.vigil directory.
+	// Override home so Write() doesn't touch the real ~/.vigyl directory.
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
 
@@ -136,7 +136,7 @@ func TestWrite_CreatesFileAndSetsKey(t *testing.T) {
 		t.Fatalf("Write() error: %v", err)
 	}
 
-	cfgPath := filepath.Join(dir, ".vigil", "config.yaml")
+	cfgPath := filepath.Join(dir, ".vigyl", "config.yaml")
 	data, err := os.ReadFile(cfgPath)
 	if err != nil {
 		t.Fatalf("config file not created: %v", err)

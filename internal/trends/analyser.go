@@ -1,7 +1,7 @@
 package trends
 
 import (
-	"github.com/isthobbit/vigil/internal/store"
+	"github.com/isthobbit/vigyl/internal/store"
 )
 
 // Analyse compares the current scan against previous scans of the same path

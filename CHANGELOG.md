@@ -13,7 +13,7 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Secrets scanning via [Gitleaks](https://github.com/gitleaks/gitleaks)
 - SAST scanning via [Semgrep](https://semgrep.dev)
 - Unified `jensec scan all / sast / secrets` CLI
-- Local scan history stored in SQLite (`~/.vigil/jensec.db`)
+- Local scan history stored in SQLite (`~/.vigyl/jensec.db`)
 - Automatic dependency install prompt â€” jensec detects missing tools
   and offers to install them interactively (Y/N)
 - `--fail-on` flag for pipeline threshold control (critical/high/medium/low/none)
@@ -24,7 +24,7 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Makefile with `build`, `install`, `test`, `scan`, `clean` targets
 - Coloured terminal output with `--no-color` override
 - Verbose mode with `-v`
-- Config file support via `~/.vigil/config.yaml` and `vigil_` env vars
+- Config file support via `~/.vigyl/config.yaml` and `vigyl_` env vars
 
 ---
 

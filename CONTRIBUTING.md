@@ -30,8 +30,8 @@ First off â€” thank you for taking the time to contribute. jensec is built 
 
 **Clone and build**
 ```bash
-git clone https://github.com/isthobbit/vigil.git
-cd vigil
+git clone https://github.com/isthobbit/vigyl.git
+cd vigyl
 go mod tidy
 make build
 ```
@@ -53,7 +53,7 @@ make scan
 ## Project structure
 
 ```
-vigil/
+vigyl/
 â”œâ”€â”€ cmd/jensec/          # binary entry point
 â”œâ”€â”€ internal/
 â”‚   â”œâ”€â”€ cli/             # Cobra commands (scan, report, detect, config)
