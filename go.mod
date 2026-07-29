@@ -1,4 +1,4 @@
-module github.com/isthobbit/vigil
+module github.com/isthobbit/vigyl
 
 go 1.22
 

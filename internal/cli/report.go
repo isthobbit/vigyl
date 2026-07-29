@@ -5,8 +5,8 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/isthobbit/vigil/internal/store"
-	"github.com/isthobbit/vigil/pkg/output"
+	"github.com/isthobbit/vigyl/internal/store"
+	"github.com/isthobbit/vigyl/pkg/output"
 	"github.com/spf13/cobra"
 )
 

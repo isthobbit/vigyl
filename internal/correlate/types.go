@@ -1,6 +1,6 @@
 package correlate
 
-import "github.com/isthobbit/vigil/internal/store"
+import "github.com/isthobbit/vigyl/internal/store"
 
 // Input holds all findings from a single scan, ready for correlation.
 type Input struct {

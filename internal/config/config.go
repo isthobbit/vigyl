@@ -33,7 +33,7 @@ type ScanConfig struct {
 }
 
 type StorageConfig struct {
-	// DBPath overrides the default ~/.vigil/jensec.db location.
+	// DBPath overrides the default ~/.vigyl/jensec.db location.
 	DBPath string `mapstructure:"db_path"`
 	// MaxHistory is the maximum number of scan records to retain.
 	MaxHistory int `mapstructure:"max_history"`

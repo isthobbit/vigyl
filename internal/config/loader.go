@@ -13,8 +13,8 @@ import (
 // merges it with defaults, validates it, and returns the result.
 //
 // Priority order (highest â†’ lowest):
-//  1. Environment variables (vigil_*)
-//  2. Config file (~/.vigil/config.yaml or --config flag)
+//  1. Environment variables (vigyl_*)
+//  2. Config file (~/.vigyl/config.yaml or --config flag)
 //  3. Built-in defaults
 func Load(cfgFile string) (*Config, error) {
 	v := viper.New()
@@ -25,14 +25,14 @@ func Load(cfgFile string) (*Config, error) {
 	} else {
 		home, err := os.UserHomeDir()
 		if err == nil {
-			v.AddConfigPath(filepath.Join(home, ".vigil"))
+			v.AddConfigPath(filepath.Join(home, ".vigyl"))
 		}
 		v.AddConfigPath(".")
 		v.SetConfigName("config")
 		v.SetConfigType("yaml")
 	}
 
-	v.SetEnvPrefix("vigil")
+	v.SetEnvPrefix("vigyl")
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	v.AutomaticEnv()
 
@@ -56,14 +56,14 @@ func Load(cfgFile string) (*Config, error) {
 }
 
 // Write persists the current viper settings to the config file.
-// Creates ~/.vigil/config.yaml if it does not exist.
+// Creates ~/.vigyl/config.yaml if it does not exist.
 func Write(key, value string) error {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return fmt.Errorf("could not find home directory: %w", err)
 	}
 
-	dir := filepath.Join(home, ".vigil")
+	dir := filepath.Join(home, ".vigyl")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("could not create config directory: %w", err)
 	}

@@ -11,9 +11,9 @@ builds:
     main: ./cmd/jensec
     binary: jensec
     ldflags:
-      - -X github.com/isthobbit/vigil/pkg/version.Version={{.Version}}
-      - -X github.com/isthobbit/vigil/pkg/version.Commit={{.Commit}}
-      - -X github.com/isthobbit/vigil/pkg/version.BuildDate={{.Date}}
+      - -X github.com/isthobbit/vigyl/pkg/version.Version={{.Version}}
+      - -X github.com/isthobbit/vigyl/pkg/version.Commit={{.Commit}}
+      - -X github.com/isthobbit/vigyl/pkg/version.BuildDate={{.Date}}
     env:
       - CGO_ENABLED=0
     goos:
@@ -41,7 +41,7 @@ checksum:
 release:
   github:
     owner: isthobbit
-    name: vigil
+    name: vigyl
   name_template: "v{{.Version}}"
   draft: false
 

@@ -35,7 +35,7 @@ func runConfigView(cmd *cobra.Command, args []string) error {
 	settings := viper.AllSettings()
 	if len(settings) == 0 {
 		fmt.Println("No configuration found. Using defaults.")
-		fmt.Println("Config file location: ~/.vigil/config.yaml")
+		fmt.Println("Config file location: ~/.vigyl/config.yaml")
 		return nil
 	}
 	fmt.Println("Current configuration:")

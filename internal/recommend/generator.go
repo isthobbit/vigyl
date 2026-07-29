@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/isthobbit/vigil/internal/store"
+	"github.com/isthobbit/vigyl/internal/store"
 )
 
 // Generate produces a prioritised list of recommendations from a set of

@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/isthobbit/vigil/internal/detect"
+	"github.com/isthobbit/vigyl/internal/detect"
 	"github.com/spf13/cobra"
 )
 

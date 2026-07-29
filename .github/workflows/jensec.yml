@@ -10,7 +10,7 @@ on:
 
 jobs:
   security-scan:
-    name: jensec · vigil Security Scan
+    name: jensec · vigyl Security Scan
     runs-on: ubuntu-latest
 
     permissions:

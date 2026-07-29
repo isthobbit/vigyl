@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/isthobbit/vigil/pkg/version"
+	"github.com/isthobbit/vigyl/pkg/version"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -20,11 +20,11 @@ var (
 // rootCmd is the base command when called without any subcommands.
 var rootCmd = &cobra.Command{
 	Use:     "jensec",
-	Short:   "vigil â€” offline-first security scanner for developers",
+	Short:   "vigyl â€” offline-first security scanner for developers",
 	Version: version.Version,
 	Long: `
 â•­â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â•®
-â”‚  jensec Â· by vigil                      â”‚
+â”‚  jensec Â· by vigyl                      â”‚
 â”‚  Offline-first DevSecOps scanner        â”‚
 â”‚  Built in Kenya for the world           â”‚
 â•°â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â•¯
@@ -45,7 +45,7 @@ func init() {
 	cobra.OnInitialize(initConfig)
 
 	// Persistent flags are available to every subcommand.
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default: $HOME/.vigil/config.yaml)")
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default: $HOME/.vigyl/config.yaml)")
 	rootCmd.PersistentFlags().BoolVar(&jsonOut, "json", false, "output results as JSON")
 	rootCmd.PersistentFlags().BoolVar(&noColor, "no-color", false, "disable colored output")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "verbose output")
@@ -65,14 +65,14 @@ func initConfig() {
 			fmt.Fprintln(os.Stderr, "warning: could not find home directory:", err)
 			return
 		}
-		viper.AddConfigPath(fmt.Sprintf("%s/.vigil", home))
+		viper.AddConfigPath(fmt.Sprintf("%s/.vigyl", home))
 		viper.SetConfigName("config")
 		viper.SetConfigType("yaml")
 	}
 
-	// Allow any config key to be overridden with a vigil_ env var.
-	// e.g. vigil_VERBOSE=true
-	viper.SetEnvPrefix("vigil")
+	// Allow any config key to be overridden with a vigyl_ env var.
+	// e.g. vigyl_VERBOSE=true
+	viper.SetEnvPrefix("vigyl")
 	viper.AutomaticEnv()
 
 	// Silently ignore missing config file â€” it's optional.

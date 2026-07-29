@@ -6,11 +6,11 @@ import (
 	"io"
 	"time"
 
-	"github.com/isthobbit/vigil/internal/scan/deps/osv"
-	"github.com/isthobbit/vigil/internal/scan/deps/trivy"
-	"github.com/isthobbit/vigil/internal/scan/sast"
-	"github.com/isthobbit/vigil/internal/scan/secrets"
-	"github.com/isthobbit/vigil/internal/store"
+	"github.com/isthobbit/vigyl/internal/scan/deps/osv"
+	"github.com/isthobbit/vigyl/internal/scan/deps/trivy"
+	"github.com/isthobbit/vigyl/internal/scan/sast"
+	"github.com/isthobbit/vigyl/internal/scan/secrets"
+	"github.com/isthobbit/vigyl/internal/store"
 )
 
 // JSONReport is the top-level structure written when --json is passed.
