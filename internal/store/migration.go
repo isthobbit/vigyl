@@ -95,26 +95,37 @@ CREATE TABLE IF NOT EXISTS risk_scores (
     contributing_finding_count INTEGER NOT NULL DEFAULT 0
 );
 
+CREATE TABLE IF NOT EXISTS ignored_findings (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    -- fingerprint uniquely identifies a finding across scans.
+    -- For code findings: scanner|rule_id|file
+    -- For dep findings:  scanner|package|version|cve_id
+    fingerprint       TEXT     NOT NULL UNIQUE,
+    scanner           TEXT     NOT NULL,
+    finding_type      TEXT     NOT NULL DEFAULT 'code',  -- 'code' | 'dep'
+    reason            TEXT     NOT NULL DEFAULT 'no reason provided',
+    ignored_at        DATETIME NOT NULL,
+    -- original finding details for display in ignore list
+    rule_id           TEXT     NOT NULL DEFAULT '',
+    file              TEXT     NOT NULL DEFAULT '',
+    package           TEXT     NOT NULL DEFAULT '',
+    cve_id            TEXT     NOT NULL DEFAULT ''
+);
+
 CREATE INDEX IF NOT EXISTS idx_code_findings_scan_id    ON code_findings(scan_id);
 CREATE INDEX IF NOT EXISTS idx_dep_findings_scan_id     ON dependency_findings(scan_id);
 CREATE INDEX IF NOT EXISTS idx_correlations_scan_id     ON correlations(scan_id);
 CREATE INDEX IF NOT EXISTS idx_risk_scores_scan_id      ON risk_scores(scan_id);
 CREATE INDEX IF NOT EXISTS idx_scans_started_at         ON scans(started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ignored_fingerprint      ON ignored_findings(fingerprint);
 `
 
-const currentSchemaVersion = 2
+const currentSchemaVersion = 3
 
 // migrateV1ToV2 upgrades an existing v1 database to v2.
-//
-// SQLite does not support ALTER TABLE ... RENAME TABLE directly in all
-// contexts, so we use the standard create-copy-drop-rename pattern.
-// All operations run inside the caller's transaction.
 const migrateV1ToV2 = `
--- 1. Add risk_score column to scans (safe to run even if it already exists
---    via the migration guard in migrate()).
 ALTER TABLE scans ADD COLUMN risk_score REAL NOT NULL DEFAULT 0.0;
 
--- 2. Create code_findings as a copy of findings schema.
 CREATE TABLE IF NOT EXISTS code_findings (
     id        INTEGER PRIMARY KEY AUTOINCREMENT,
     scan_id   INTEGER NOT NULL REFERENCES scans(id) ON DELETE CASCADE,
@@ -127,15 +138,12 @@ CREATE TABLE IF NOT EXISTS code_findings (
     raw_match TEXT    NOT NULL DEFAULT ''
 );
 
--- 3. Copy all existing findings into code_findings.
 INSERT INTO code_findings (id, scan_id, scanner, severity, rule_id, file, line, message, raw_match)
 SELECT id, scan_id, scanner, severity, rule_id, file, line, message, raw_match
 FROM findings;
 
--- 4. Drop the old findings table.
 DROP TABLE findings;
 
--- 5. Create new v2 tables.
 CREATE TABLE IF NOT EXISTS dependency_findings (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     scan_id       INTEGER NOT NULL REFERENCES scans(id) ON DELETE CASCADE,
@@ -170,12 +178,30 @@ CREATE TABLE IF NOT EXISTS risk_scores (
     contributing_finding_count INTEGER NOT NULL DEFAULT 0
 );
 
--- 6. Recreate indexes.
 CREATE INDEX IF NOT EXISTS idx_code_findings_scan_id ON code_findings(scan_id);
 CREATE INDEX IF NOT EXISTS idx_dep_findings_scan_id  ON dependency_findings(scan_id);
 CREATE INDEX IF NOT EXISTS idx_correlations_scan_id  ON correlations(scan_id);
 CREATE INDEX IF NOT EXISTS idx_risk_scores_scan_id   ON risk_scores(scan_id);
 
--- 7. Bump schema version.
 UPDATE schema_version SET version = 2;
+`
+
+// migrateV2ToV3 adds the ignored_findings table.
+const migrateV2ToV3 = `
+CREATE TABLE IF NOT EXISTS ignored_findings (
+    id            INTEGER  PRIMARY KEY AUTOINCREMENT,
+    fingerprint   TEXT     NOT NULL UNIQUE,
+    scanner       TEXT     NOT NULL,
+    finding_type  TEXT     NOT NULL DEFAULT 'code',
+    reason        TEXT     NOT NULL DEFAULT 'no reason provided',
+    ignored_at    DATETIME NOT NULL,
+    rule_id       TEXT     NOT NULL DEFAULT '',
+    file          TEXT     NOT NULL DEFAULT '',
+    package       TEXT     NOT NULL DEFAULT '',
+    cve_id        TEXT     NOT NULL DEFAULT ''
+);
+
+CREATE INDEX IF NOT EXISTS idx_ignored_fingerprint ON ignored_findings(fingerprint);
+
+UPDATE schema_version SET version = 3;
 `
