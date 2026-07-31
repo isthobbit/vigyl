@@ -75,6 +75,12 @@ func (db *DB) migrate() error {
 		if err := db.applyMigration(migrateV1ToV2); err != nil {
 			return fmt.Errorf("migrating v1 to v2: %w", err)
 		}
+		fallthrough
+
+	case current < 3:
+		if err := db.applyMigration(migrateV2ToV3); err != nil {
+			return fmt.Errorf("migrating v2 to v3: %w", err)
+		}
 	}
 
 	return nil
@@ -280,6 +286,126 @@ func (db *DB) CorrelationsForScan(scanID int64) ([]CorrelationRecord, error) {
 	}
 	return correlations, rows.Err()
 }
+
+// ── Ignore methods ────────────────────────────────────────────────────────────
+
+// SaveIgnore persists an ignored finding record.
+func (db *DB) SaveIgnore(record IgnoredFindingRecord) error {
+	_, err := db.conn.Exec(`
+		INSERT INTO ignored_findings (fingerprint, scanner, finding_type, reason, ignored_at, rule_id, file, package, cve_id)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(fingerprint) DO UPDATE SET
+			reason     = excluded.reason,
+			ignored_at = excluded.ignored_at
+	`,
+		record.Fingerprint,
+		record.Scanner,
+		record.FindingType,
+		record.Reason,
+		record.IgnoredAt.UTC(),
+		record.RuleID,
+		record.File,
+		record.Package,
+		record.CVEID,
+	)
+	return err
+}
+
+// IsIgnored reports whether a finding fingerprint is in the ignore list.
+func (db *DB) IsIgnored(fingerprint string) (bool, error) {
+	var count int
+	err := db.conn.QueryRow(
+		`SELECT COUNT(1) FROM ignored_findings WHERE fingerprint = ?`,
+		fingerprint,
+	).Scan(&count)
+	return count > 0, err
+}
+
+// AllIgnored returns all ignored finding records.
+func (db *DB) AllIgnored() ([]IgnoredFindingRecord, error) {
+	rows, err := db.conn.Query(`
+		SELECT id, fingerprint, scanner, finding_type, reason, ignored_at, rule_id, file, package, cve_id
+		FROM ignored_findings
+		ORDER BY ignored_at DESC
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var records []IgnoredFindingRecord
+	for rows.Next() {
+		var r IgnoredFindingRecord
+		if err := rows.Scan(
+			&r.ID, &r.Fingerprint, &r.Scanner, &r.FindingType,
+			&r.Reason, &r.IgnoredAt, &r.RuleID, &r.File, &r.Package, &r.CVEID,
+		); err != nil {
+			return nil, err
+		}
+		records = append(records, r)
+	}
+	return records, rows.Err()
+}
+
+// RemoveIgnore deletes an ignored finding by its database ID.
+func (db *DB) RemoveIgnore(id int64) error {
+	res, err := db.conn.Exec(`DELETE FROM ignored_findings WHERE id = ?`, id)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return fmt.Errorf("ignore entry %d not found", id)
+	}
+	return nil
+}
+
+// IgnoredFingerprints returns a set of all ignored fingerprints for fast lookup.
+func (db *DB) IgnoredFingerprints() (map[string]bool, error) {
+	rows, err := db.conn.Query(`SELECT fingerprint FROM ignored_findings`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	set := make(map[string]bool)
+	for rows.Next() {
+		var fp string
+		if err := rows.Scan(&fp); err != nil {
+			return nil, err
+		}
+		set[fp] = true
+	}
+	return set, rows.Err()
+}
+
+// CodeFindingByID returns a single code finding by ID, or nil if not found.
+func (db *DB) CodeFindingByID(id int64) (*CodeFindingRecord, error) {
+	var f CodeFindingRecord
+	err := db.conn.QueryRow(`
+		SELECT id, scan_id, scanner, severity, rule_id, file, line, message, raw_match
+		FROM code_findings WHERE id = ?
+	`, id).Scan(&f.ID, &f.ScanID, &f.Scanner, &f.Severity, &f.RuleID, &f.File, &f.Line, &f.Message, &f.RawMatch)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	return &f, err
+}
+
+// DepFindingByID returns a single dependency finding by ID, or nil if not found.
+func (db *DB) DepFindingByID(id int64) (*DepFindingRecord, error) {
+	var f DepFindingRecord
+	err := db.conn.QueryRow(`
+		SELECT id, scan_id, scanner, severity, package, version, cve_id, ecosystem, fixed_version, description
+		FROM dependency_findings WHERE id = ?
+	`, id).Scan(&f.ID, &f.ScanID, &f.Scanner, &f.Severity, &f.Package, &f.Version, &f.CVEID, &f.Ecosystem, &f.FixedVersion, &f.Description)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	return &f, err
+}
+
+// ── Scan queries ──────────────────────────────────────────────────────────────
 
 // LatestScan returns the most recent scan record, or nil if none exist.
 func (db *DB) LatestScan() (*ScanRecord, error) {

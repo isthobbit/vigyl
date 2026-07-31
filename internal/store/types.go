@@ -1,6 +1,9 @@
 package store
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 // ScanRecord is one complete scan run persisted to the database.
 type ScanRecord struct {
@@ -28,6 +31,12 @@ type CodeFindingRecord struct {
 	RawMatch string `json:"raw_match"`
 }
 
+// CodeFingerprint returns a stable fingerprint for a code finding.
+// Deliberately excludes line number so minor refactors don't break ignores.
+func CodeFingerprint(scanner, ruleID, file string) string {
+	return fmt.Sprintf("%s|%s|%s", scanner, ruleID, file)
+}
+
 // DepFindingRecord is one finding from a dependency scanner (Trivy or OSV).
 type DepFindingRecord struct {
 	ID           int64  `json:"id"`
@@ -40,6 +49,11 @@ type DepFindingRecord struct {
 	Ecosystem    string `json:"ecosystem"`     // e.g. "Go" | "npm" | "PyPI"
 	FixedVersion string `json:"fixed_version"` // e.g. "1.2.4" (empty if no fix available)
 	Description  string `json:"description"`
+}
+
+// DepFingerprint returns a stable fingerprint for a dependency finding.
+func DepFingerprint(scanner, pkg, version, cveID string) string {
+	return fmt.Sprintf("%s|%s|%s|%s", scanner, pkg, version, cveID)
 }
 
 // CorrelationRecord links two findings from different scanners.
@@ -64,6 +78,21 @@ type RiskScoreRecord struct {
 	Package                  *string `json:"package,omitempty"`
 	Score                    float64 `json:"score"`
 	ContributingFindingCount int     `json:"contributing_finding_count"`
+}
+
+// IgnoredFindingRecord is a finding that has been marked as ignored.
+type IgnoredFindingRecord struct {
+	ID          int64     `json:"id"`
+	Fingerprint string    `json:"fingerprint"`
+	Scanner     string    `json:"scanner"`
+	FindingType string    `json:"finding_type"` // "code" | "dep"
+	Reason      string    `json:"reason"`
+	IgnoredAt   time.Time `json:"ignored_at"`
+	// Display fields — populated from the original finding at ignore time.
+	RuleID  string `json:"rule_id"`
+	File    string `json:"file"`
+	Package string `json:"package"`
+	CVEID   string `json:"cve_id"`
 }
 
 // RiskBand maps a numeric risk score to a named severity band.
