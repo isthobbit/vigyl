@@ -407,6 +407,9 @@ func persistScan(path, scanners string, startedAt, endedAt time.Time, s *secrets
 		}
 	}
 
+	// Fetch the ignored fingerprints for filtering.
+	ignored, _ := db.IgnoredFingerprints()
+
 	// Run the correlation engine.
 	engine := correlate.New(db, nil)
 	codeRecs, _ := db.CodeFindingsForScan(scanID)
@@ -419,11 +422,23 @@ func persistScan(path, scanners string, startedAt, endedAt time.Time, s *secrets
 		fmt.Fprintf(os.Stderr, "WARNING: Correlation engine error: %v\n", err)
 	}
 
-	// Generate and display recommendations.
+	// Filter out ignored findings before recommendations and display.
+	activeCode, suppressedCode := filterIgnoredCode(codeRecs, ignored)
+	activeDep, suppressedDep := filterIgnoredDep(depRecs, ignored)
+
+	// Generate and display recommendations using only active findings.
 	correlationRecs, _ := db.CorrelationsForScan(scanID)
-	recs := recommend.Generate(correlationRecs, codeRecs, depRecs)
+	recs := recommend.Generate(correlationRecs, activeCode, activeDep)
 	if !jsonOut && len(recs) > 0 {
 		output.PrintRecommendations(recs, noColor)
+	}
+
+	// Show suppressed findings summary if any were filtered.
+	if !jsonOut {
+		summary := ignoredSummaryLine(len(suppressedCode), len(suppressedDep))
+		if summary != "" {
+			fmt.Print(summary)
+		}
 	}
 
 	// Run trend analysis.
