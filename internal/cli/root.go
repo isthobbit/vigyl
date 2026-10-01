@@ -20,17 +20,18 @@ var (
 // rootCmd is the base command when called without any subcommands.
 var rootCmd = &cobra.Command{
 	Use:     "jensec",
-	Short:   "vigyl — offline-first security scanner for developers",
+	Short:   "vigyl — local-first security scanner for developers",
 	Version: version.Version,
 	Long: `
 ╭─────────────────────────────────────────╮
 │  jensec · by vigyl                      │
-│  Offline-first DevSecOps scanner        │
+│  Local-first DevSecOps scanner          │
 │  Built in Kenya for the world           │
 ╰─────────────────────────────────────────╯
 
 Scan your code for vulnerabilities and leaked secrets.
-No cloud account required. Works offline.`,
+No cloud account required, and your code never leaves your machine.
+Add --offline to scan with no network access at all.`,
 }
 
 // Execute is the entry point called from main.go.

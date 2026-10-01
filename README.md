@@ -8,7 +8,7 @@
 ```
 ╭─────────────────────────────────────────╮
 │  jensec · by VIGYL                      │
-│  Offline-first DevSecOps scanner        │
+│  Local-first DevSecOps scanner          │
 ╰─────────────────────────────────────────╯
 ```
 
