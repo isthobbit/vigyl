@@ -49,7 +49,7 @@ func TestParseOutputForTest_WithFindings(t *testing.T) {
 		t.Fatalf("expected 2 findings, got %d", len(findings))
 	}
 
-	// First finding â€” ERROR â†’ CRITICAL
+	// First finding — ERROR → CRITICAL
 	f0 := findings[0]
 	if f0.RuleID != "python.lang.security.audit.eval-used.eval-used" {
 		t.Errorf("finding[0] RuleID: got %q", f0.RuleID)
@@ -64,7 +64,7 @@ func TestParseOutputForTest_WithFindings(t *testing.T) {
 		t.Errorf("finding[0] Start.Line: got %d, want 42", f0.Start.Line)
 	}
 
-	// Second finding â€” WARNING â†’ HIGH
+	// Second finding — WARNING → HIGH
 	f1 := findings[1]
 	if f1.Severity != "HIGH" {
 		t.Errorf("finding[1] Severity: got %q, want HIGH (WARNING normalised)", f1.Severity)
@@ -112,11 +112,11 @@ func TestSeverityNormalisation(t *testing.T) {
 		input   string
 		wantSev string
 	}{
-		// ERROR â†’ CRITICAL
+		// ERROR → CRITICAL
 		{`{"results":[{"check_id":"r","path":"f","start":{"line":1,"col":1,"offset":0},"end":{"line":1,"col":1,"offset":0},"extra":{"message":"m","severity":"ERROR","lines":"","metadata":{},"fix":""}}],"errors":[],"version":"1"}`, "CRITICAL"},
-		// WARNING â†’ HIGH
+		// WARNING → HIGH
 		{`{"results":[{"check_id":"r","path":"f","start":{"line":1,"col":1,"offset":0},"end":{"line":1,"col":1,"offset":0},"extra":{"message":"m","severity":"WARNING","lines":"","metadata":{},"fix":""}}],"errors":[],"version":"1"}`, "HIGH"},
-		// INFO â†’ MEDIUM
+		// INFO → MEDIUM
 		{`{"results":[{"check_id":"r","path":"f","start":{"line":1,"col":1,"offset":0},"end":{"line":1,"col":1,"offset":0},"extra":{"message":"m","severity":"INFO","lines":"","metadata":{},"fix":""}}],"errors":[],"version":"1"}`, "MEDIUM"},
 	}
 

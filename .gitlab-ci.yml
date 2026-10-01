@@ -1,4 +1,4 @@
-# jensec Â· vigyl Security Scan â€” GitLab CI
+# jensec · vigyl Security Scan — GitLab CI
 #
 # Add this file to your repo as .gitlab-ci.yml
 # or include it from your existing pipeline:

@@ -8,7 +8,7 @@ import (
 	"github.com/isthobbit/vigyl/internal/config"
 )
 
-// â”€â”€ Defaults â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Defaults ──────────────────────────────────────────────────────────────────
 
 func TestDefaults_FailOnIsHigh(t *testing.T) {
 	d := config.Defaults()
@@ -31,7 +31,7 @@ func TestDefaults_SemgrepRulesIsAuto(t *testing.T) {
 	}
 }
 
-// â”€â”€ Load â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Load ─────────────────────────────────────────────────────────────────────
 
 // isolateHome points the home directory at a fresh temp dir so tests never
 // read or write the real ~/.vigyl. os.UserHomeDir reads HOME on Unix but
@@ -46,7 +46,7 @@ func isolateHome(t *testing.T) string {
 
 func TestLoad_NoConfigFile_ReturnsDefaults(t *testing.T) {
 	isolateHome(t)
-	// Point at a directory with no config file â€” should succeed with defaults.
+	// Point at a directory with no config file — should succeed with defaults.
 	cfg, err := config.Load("")
 	if err != nil {
 		t.Fatalf("Load() with no config file returned error: %v", err)
@@ -110,7 +110,7 @@ func TestLoad_EnvVarOverridesFile(t *testing.T) {
 	}
 }
 
-// â”€â”€ Severity threshold â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Severity threshold ────────────────────────────────────────────────────────
 
 func TestMeetsSeverityThreshold(t *testing.T) {
 	tests := []struct {
@@ -137,7 +137,7 @@ func TestMeetsSeverityThreshold(t *testing.T) {
 	}
 }
 
-// â”€â”€ Write â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Write ─────────────────────────────────────────────────────────────────────
 
 func TestWrite_CreatesFileAndSetsKey(t *testing.T) {
 	// Override home so Write() doesn't touch the real ~/.vigyl directory.

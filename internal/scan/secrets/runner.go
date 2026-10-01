@@ -14,7 +14,7 @@ import (
 )
 
 // ErrGitleaksNotFound is returned when the gitleaks binary is not in PATH.
-var ErrGitleaksNotFound = errors.New("gitleaks not found â€” install it: https://github.com/gitleaks/gitleaks#installing")
+var ErrGitleaksNotFound = errors.New("gitleaks not found — install it: https://github.com/gitleaks/gitleaks#installing")
 
 // defaultTimeout is used when the caller passes timeout=0 (i.e. no config file).
 const defaultTimeout = 10 * time.Minute
@@ -39,7 +39,7 @@ func supportsNoGit(gitleaksPath string) bool {
 // Run executes gitleaks against the given path and returns a Result.
 //
 // It writes a temporary JSON report file, reads it, then cleans up.
-// Gitleaks exits with code 1 when findings are present â€” that is NOT
+// Gitleaks exits with code 1 when findings are present — that is NOT
 // an error from our perspective, so we handle that case explicitly.
 // Pass timeout=0 to use the built-in 10-minute default.
 func Run(scanPath string, verbose bool, timeout time.Duration, excludePaths []string) (*Result, error) {
@@ -69,7 +69,7 @@ func Run(scanPath string, verbose bool, timeout time.Duration, excludePaths []st
 	defer os.Remove(reportPath)
 
 	// 4. Build the gitleaks command.
-	//    --exit-code 0 â†’ we handle exit codes ourselves
+	//    --exit-code 0 → we handle exit codes ourselves
 	args := []string{
 		"detect",
 		"--source", absPath,

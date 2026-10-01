@@ -1,4 +1,4 @@
-## jensec Â· vigyl â€” Makefile
+## jensec · vigyl — Makefile
 ## Usage: make <target>
 
 BINARY     := jensec

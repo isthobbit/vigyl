@@ -12,7 +12,7 @@ import (
 // Load reads configuration from disk and environment variables,
 // merges it with defaults, validates it, and returns the result.
 //
-// Priority order (highest â†’ lowest):
+// Priority order (highest → lowest):
 //  1. Environment variables (vigyl_*)
 //  2. Config file (~/.vigyl/config.yaml or --config flag)
 //  3. Built-in defaults
@@ -36,7 +36,7 @@ func Load(cfgFile string) (*Config, error) {
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	v.AutomaticEnv()
 
-	// A missing config file is fine â€” we fall back to defaults.
+	// A missing config file is fine — we fall back to defaults.
 	if err := v.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
 			return nil, fmt.Errorf("error reading config file: %w", err)
@@ -86,7 +86,7 @@ func Write(key, value string) error {
 func validate(cfg *Config) error {
 	if !ValidFailOnValues[strings.ToLower(cfg.Scan.FailOn)] {
 		return fmt.Errorf(
-			"invalid scan.fail_on value %q â€” must be one of: critical, high, medium, low, none",
+			"invalid scan.fail_on value %q — must be one of: critical, high, medium, low, none",
 			cfg.Scan.FailOn,
 		)
 	}

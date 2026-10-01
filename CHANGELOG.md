@@ -44,14 +44,14 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
-## [v0.1.0] â€” 2026-06-06
+## [v0.1.0] — 2026-06-06
 
 ### Added
 - Secrets scanning via [Gitleaks](https://github.com/gitleaks/gitleaks)
 - SAST scanning via [Semgrep](https://semgrep.dev)
 - Unified `jensec scan all / sast / secrets` CLI
 - Local scan history stored in SQLite (`~/.vigyl/jensec.db`)
-- Automatic dependency install prompt â€” jensec detects missing tools
+- Automatic dependency install prompt — jensec detects missing tools
   and offers to install them interactively (Y/N)
 - `--fail-on` flag for pipeline threshold control (critical/high/medium/low/none)
 - `--json` and `--output` flags for machine-readable output
@@ -67,13 +67,13 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Upcoming
 
-### [v0.2.0] â€” planned
+### [v0.2.0] — planned
 - SARIF output format (`--format sarif`) for GitHub Code Scanning integration
 - `govulncheck` integration for Go dependency vulnerability scanning
-- `jensec report export` â€” shareable HTML snapshot of scan results
-- Asset management â€” `jensec assets` command surfacing multi-repo scan history
+- `jensec report export` — shareable HTML snapshot of scan results
+- Asset management — `jensec assets` command surfacing multi-repo scan history
 
-### [v0.3.0] â€” planned
+### [v0.3.0] — planned
 - HTML and PDF report formats
 - Risk scoring engine
 - Team scan history sharing (self-hosted)
