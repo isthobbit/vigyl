@@ -7,6 +7,27 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [Unreleased]
+
+### Added
+- `--offline` flag (and `scan.offline` config) on every `scan` command: all four
+  scanners run against local data with no network access. Semgrep metrics and
+  version checks, Trivy DB updates, version checks and telemetry, and OSV-Scanner
+  API lookups are all turned off.
+- `jensec offline sync` downloads the Trivy DB, OSV ecosystem databases and
+  Semgrep rule packs; `status` reports their age and warns after 7 days.
+- `jensec offline export` / `import` move that data to an air-gapped machine as
+  one archive with a SHA-256 checksum. Import rejects path traversal and links.
+- CI workflow `offline-proof.yml` scans a vulnerable fixture inside a container
+  started with `--network none` and fails unless every scanner finds issues.
+
+### Fixed
+- `scan.semgrep_rules` is now honoured; it was previously ignored.
+- OSV-Scanner exclusions use `--experimental-exclude` instead of adding a
+  stray `--skip-git` per excluded path.
+
+---
+
 ## [v0.1.0] â€” 2026-06-06
 
 ### Added
