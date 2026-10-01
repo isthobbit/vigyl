@@ -331,3 +331,29 @@ func color(noColor bool, code, text string) string {
 	}
 	return code + text + "\033[0m"
 }
+
+// ManualURL returns the install documentation link for a tool.
+func ManualURL(t Tool) string {
+	return toolMeta(t).ManualURL
+}
+
+// InstallHint returns the one-line command that installs a tool on goos, the
+// same one jensec's install prompt would run, or "" when the install is
+// distro-specific and only the manual URL applies.
+func InstallHint(t Tool, goos string) string {
+	if t == Semgrep {
+		return "pip install semgrep"
+	}
+	switch goos {
+	case "darwin":
+		return "brew install " + string(t)
+	case "windows":
+		ids := map[Tool]string{
+			Gitleaks:   "Gitleaks.Gitleaks",
+			Trivy:      "AquaSecurity.Trivy",
+			OSVScanner: "Google.OSVScanner",
+		}
+		return "winget install " + ids[t]
+	}
+	return ""
+}

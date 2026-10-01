@@ -10,6 +10,10 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- `jensec doctor`: checks the four scanners (installed, on PATH, version against
+  the minimum and tested versions), offline data, the config file and scan
+  history, with a fix for each problem. On Windows it finds scanners that winget
+  or pip installed but did not add to PATH. Exits 1 on any failure; `--json`.
 - `--offline` flag (and `scan.offline` config) on every `scan` command: all four
   scanners run against local data with no network access. Semgrep metrics and
   version checks, Trivy DB updates, version checks and telemetry, and OSV-Scanner
@@ -21,7 +25,15 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - CI workflow `offline-proof.yml` scans a vulnerable fixture inside a container
   started with `--network none` and fails unless every scanner finds issues.
 
+### Changed
+- Scan history moved from `~/.kinga/jensec.db` to `~/.vigyl/jensec.db`, alongside
+  the config. On first run jensec moves `jensec.db` and `config.yaml` from
+  `~/.kinga`, never overwriting existing files, and prints what it moved. A moved
+  `config.yaml` was previously not read, so its settings now apply.
+
 ### Fixed
+- `VIGYL_STORAGE_DB_PATH` and `VIGYL_AUTH_LICENSE_KEY` were ignored.
+- `jensec report` ignored `storage.db_path`.
 - `scan.semgrep_rules` is now honoured; it was previously ignored.
 - OSV-Scanner exclusions use `--experimental-exclude` instead of adding a
   stray `--skip-git` per excluded path.

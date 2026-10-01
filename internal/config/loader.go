@@ -111,3 +111,29 @@ func applyDefaults(v *viper.Viper) {
 	v.SetDefault("storage.db_path", d.Storage.DBPath)
 	v.SetDefault("auth.license_key", d.Auth.LicenseKey)
 }
+
+// Locate returns the config file Load would read, or "" when none exists.
+// It mirrors Load's search: an explicit path, else config.<ext> in ~/.vigyl
+// and then the current directory, for every format viper supports.
+func Locate(cfgFile string) string {
+	if cfgFile != "" {
+		return cfgFile
+	}
+	var dirs []string
+	if home, err := os.UserHomeDir(); err == nil {
+		dirs = append(dirs, filepath.Join(home, ".vigyl"))
+	}
+	dirs = append(dirs, ".")
+	for _, dir := range dirs {
+		for _, ext := range viper.SupportedExts {
+			p := filepath.Join(dir, "config."+ext)
+			if info, err := os.Stat(p); err == nil && !info.IsDir() {
+				if abs, err := filepath.Abs(p); err == nil {
+					return abs
+				}
+				return p
+			}
+		}
+	}
+	return ""
+}

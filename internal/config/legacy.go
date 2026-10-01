@@ -69,3 +69,20 @@ func MigrateLegacyDir() (*LegacyMigration, error) {
 	_ = os.Remove(oldDir)
 	return m, nil
 }
+
+// LegacyLeftovers lists jensec files still in ~/.kinga. After
+// MigrateLegacyDir has run, these are files ~/.vigyl already had.
+func LegacyLeftovers() ([]string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil, err
+	}
+	var left []string
+	for _, name := range legacyFiles {
+		p := filepath.Join(home, legacyDirName, name)
+		if _, err := os.Stat(p); err == nil {
+			left = append(left, p)
+		}
+	}
+	return left, nil
+}

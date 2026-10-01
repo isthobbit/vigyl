@@ -62,7 +62,7 @@ Windows
 
 Download `jensec_windows_amd64.zip` from the [Releases page](https://github.com/isthobbit/vigyl/releases), extract, and add the binary to your PATH.
 
-> Windows note: Trivy and OSV-Scanner installed via winget may not be added to PATH automatically. If jensec cannot find them, add their install directories to your user PATH manually.
+> Windows note: Trivy and OSV-Scanner installed via winget may not be added to PATH automatically. If jensec cannot find them, run `jensec doctor`: it finds them and tells you which directory to add to your user PATH.
 
 ### Install with Go
 
@@ -106,6 +106,18 @@ brew install osv-scanner
 # Windows
 winget install Google.OSVScanner
 ```
+
+### Check your setup
+
+```bash
+jensec doctor
+```
+
+`jensec doctor` checks that each scanner is installed, on your PATH and a supported
+version, and reports the state of offline data, your config file and scan history.
+Every problem comes with the fix. It changes nothing and exits 1 if any check fails,
+so it also works as a CI pre-check. Add `--offline` to require offline data, or
+`--json` for machine-readable output.
 
 ---
 

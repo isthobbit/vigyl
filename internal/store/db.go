@@ -15,17 +15,41 @@ type DB struct {
 	conn *sql.DB
 }
 
+// DefaultPath returns ~/.vigyl/jensec.db.
+func DefaultPath() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("could not find home directory: %w", err)
+	}
+	return filepath.Join(home, ".vigyl", "jensec.db"), nil
+}
+
+// CountScans opens an existing database read-only, without creating or
+// migrating it, and returns how many scans it holds.
+func CountScans(dbPath string) (int, error) {
+	conn, err := sql.Open("sqlite", "file:"+filepath.ToSlash(dbPath)+"?mode=ro")
+	if err != nil {
+		return 0, err
+	}
+	defer conn.Close()
+	var n int
+	if err := conn.QueryRow(`SELECT COUNT(*) FROM scans`).Scan(&n); err != nil {
+		return 0, err
+	}
+	return n, nil
+}
+
 // Open opens (or creates) the jensec SQLite database.
 func Open(dbPath ...string) (*DB, error) {
 	var resolvedPath string
 	if len(dbPath) > 0 && dbPath[0] != "" {
 		resolvedPath = dbPath[0]
 	} else {
-		home, err := os.UserHomeDir()
+		p, err := DefaultPath()
 		if err != nil {
-			return nil, fmt.Errorf("could not find home directory: %w", err)
+			return nil, err
 		}
-		resolvedPath = filepath.Join(home, ".vigyl", "jensec.db")
+		resolvedPath = p
 	}
 
 	dir := filepath.Dir(resolvedPath)
