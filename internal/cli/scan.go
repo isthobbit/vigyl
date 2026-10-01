@@ -385,10 +385,21 @@ func (s *scanSetup) ready(scanner string) bool {
 	return true
 }
 
-// printMode tells the user when a scan is running offline.
+// printMode tells the user when a scan is running offline, and warns when the
+// data it is using is stale.
 func (s *scanSetup) printMode() {
-	if s.offline {
-		fmt.Fprintf(os.Stderr, "Offline mode: no network access; using local data in %s\n", s.paths.Root)
+	if !s.offline {
+		return
+	}
+	fmt.Fprintf(os.Stderr, "Offline mode: no network access; using local data in %s\n", s.paths.Root)
+	rows, err := s.paths.Status(time.Now())
+	if err != nil {
+		return
+	}
+	for _, r := range rows {
+		if r.Stale {
+			fmt.Fprintf(os.Stderr, "WARNING: offline %s data is over %d days old and may miss recent vulnerabilities — run 'jensec offline sync'\n", r.Source, int(offline.StaleAfter.Hours()/24))
+		}
 	}
 }
 
