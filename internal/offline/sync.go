@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -221,10 +222,15 @@ func syncSemgrep(ctx context.Context, p Paths, packs []string, log io.Writer) ([
 	return done, errors.Join(errs...)
 }
 
-// isRuleFile rejects responses that are not a Semgrep rules YAML document,
-// such as an HTML error page served with a 200 status.
+// ruleFileStart matches the opening of a Semgrep rules document. The registry
+// serves YAML or, when the client accepts gzip (Go always does), JSON. JSON is
+// valid YAML, so either is saved as .yml and semgrep loads it unchanged.
+var ruleFileStart = regexp.MustCompile(`^(rules:|\{\s*"rules"\s*:)`)
+
+// isRuleFile rejects responses that are not a Semgrep rules document, such as
+// an HTML error page served with a 200 status.
 func isRuleFile(head []byte) error {
-	if !bytes.HasPrefix(bytes.TrimSpace(head), []byte("rules:")) {
+	if !ruleFileStart.Match(bytes.TrimSpace(head)) {
 		return errors.New("response is not a Semgrep rules file")
 	}
 	return nil

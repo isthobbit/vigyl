@@ -90,6 +90,12 @@ func init() {
 
 	offlineImportCmd.Flags().BoolVar(&offlineNoVerify, "no-verify", false, "skip the .sha256 checksum check")
 
+	// Arguments are validated before RunE, so a usage dump after that point
+	// only buries the real error (a failed download, a bad archive).
+	for _, c := range offlineCmd.Commands() {
+		c.PreRun = func(cmd *cobra.Command, args []string) { cmd.SilenceUsage = true }
+	}
+
 	rootCmd.AddCommand(offlineCmd)
 }
 

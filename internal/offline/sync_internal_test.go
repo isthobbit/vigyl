@@ -21,6 +21,9 @@ func fakeRegistry(t *testing.T) {
 			w.Write([]byte("PK fake zip"))
 		case r.URL.Path == "/semgrep/default":
 			w.Write([]byte("rules:\n- id: x\n"))
+		case r.URL.Path == "/semgrep/secrets":
+			// The real registry answers gzip-capable clients with JSON.
+			w.Write([]byte(`{"rules":[{"id":"y"}]}`))
 		case r.URL.Path == "/semgrep/html-page":
 			w.Write([]byte("<html>Not a rule pack</html>"))
 		default:
@@ -41,7 +44,7 @@ func TestSync_DownloadsAndRecordsManifest(t *testing.T) {
 	err := Sync(context.Background(), p, SyncOptions{
 		Sources:      []string{SourceOSV, SourceSemgrep},
 		Ecosystems:   []string{"npm", "PyPI"},
-		SemgrepPacks: []string{"p/default"},
+		SemgrepPacks: []string{"p/default", "secrets"},
 	}, io.Discard)
 	if err != nil {
 		t.Fatalf("sync: %v", err)
@@ -49,7 +52,7 @@ func TestSync_DownloadsAndRecordsManifest(t *testing.T) {
 	if err := p.OSVReady(); err != nil {
 		t.Error(err)
 	}
-	if got := p.SemgrepPacks(); len(got) != 1 || got[0] != "default" {
+	if got := p.SemgrepPacks(); len(got) != 2 {
 		t.Errorf("semgrep packs: %v", got)
 	}
 

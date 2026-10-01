@@ -44,6 +44,9 @@ func Execute() {
 func init() {
 	cobra.OnInitialize(initConfig)
 
+	// Execute prints the returned error itself; stop cobra printing it too.
+	rootCmd.SilenceErrors = true
+
 	// Persistent flags are available to every subcommand.
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default: $HOME/.vigyl/config.yaml)")
 	rootCmd.PersistentFlags().BoolVar(&jsonOut, "json", false, "output results as JSON")

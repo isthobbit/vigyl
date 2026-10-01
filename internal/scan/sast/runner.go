@@ -63,9 +63,12 @@ func Run(scanPath string, verbose bool, timeout time.Duration, excludePaths []st
 	defer cancel()
 	cmd := exec.CommandContext(ctx, semgrepPath, args...)
 	cmd.Dir = absPath
+	// PYTHONUTF8 makes semgrep read rule files as UTF-8; on Windows it would
+	// otherwise use the ANSI code page and crash on non-ASCII rule text.
+	cmd.Env = append(os.Environ(), "PYTHONUTF8=1")
 	if opts.Offline {
 		// Semgrep checks for new releases on every run unless told not to.
-		cmd.Env = append(os.Environ(), "SEMGREP_ENABLE_VERSION_CHECK=0")
+		cmd.Env = append(cmd.Env, "SEMGREP_ENABLE_VERSION_CHECK=0")
 	}
 
 	var stdout, stderr bytes.Buffer
@@ -80,9 +83,11 @@ func Run(scanPath string, verbose bool, timeout time.Duration, excludePaths []st
 		if ctx.Err() == context.DeadlineExceeded {
 			return nil, fmt.Errorf("semgrep timed out after %s", timeout)
 		}
+		// Exit 2 can accompany a usable JSON report, but with no report at
+		// all semgrep failed outright; reporting zero findings would hide it.
 		exitCode := cmd.ProcessState.ExitCode()
-		if exitCode != 1 && exitCode != 2 {
-			return nil, fmt.Errorf("semgrep error (exit %d): %w\n%s", exitCode, runErr, stderr.String())
+		if (exitCode != 1 && exitCode != 2) || len(bytes.TrimSpace(stdout.Bytes())) == 0 {
+			return nil, fmt.Errorf("semgrep error (exit %d): %w\n%s", exitCode, runErr, lastLines(stderr.String(), 20))
 		}
 	}
 
@@ -143,6 +148,16 @@ func normaliseSeverity(s string) string {
 
 // filterOut returns a new slice with all occurrences of remove omitted.
 // Using a fresh slice avoids silently mutating the caller's backing array.
+// lastLines trims long output (such as a Python traceback) to its final n
+// lines, where the actual error is.
+func lastLines(s string, n int) string {
+	lines := strings.Split(strings.TrimRight(s, "\n"), "\n")
+	if len(lines) <= n {
+		return strings.Join(lines, "\n")
+	}
+	return "...\n" + strings.Join(lines[len(lines)-n:], "\n")
+}
+
 // buildArgs assembles the semgrep command line.
 //
 //	--json        → machine-readable output we can parse
