@@ -118,6 +118,13 @@ func Prompt(t Tool, noColor bool) (installed bool, err error) {
 	return true, nil
 }
 
+// Detect reports which of the four scanners are on PATH without prompting or
+// installing anything. Offline scans use it so jensec never reaches for the
+// network to fetch a missing tool.
+func Detect() (gitleaksOK, semgrepOK, trivyOK, osvOK bool) {
+	return IsInstalled(Gitleaks), IsInstalled(Semgrep), IsInstalled(Trivy), IsInstalled(OSVScanner)
+}
+
 // EnsureAll checks all four scanners. For each missing tool it calls Prompt.
 // It returns four booleans: whether gitleaks, semgrep, trivy, and osv-scanner
 // are available after the prompts (either pre-existing or freshly installed).

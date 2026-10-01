@@ -30,6 +30,9 @@ type ScanConfig struct {
 	ExcludePaths []string `mapstructure:"exclude_paths"`
 	// SemgrepRules overrides the default "auto" ruleset.
 	SemgrepRules string `mapstructure:"semgrep_rules"`
+	// Offline runs every scanner against local data only, with no network
+	// access. Data is prepared with `jensec offline sync`.
+	Offline bool `mapstructure:"offline"`
 }
 
 type StorageConfig struct {
@@ -37,6 +40,8 @@ type StorageConfig struct {
 	DBPath string `mapstructure:"db_path"`
 	// MaxHistory is the maximum number of scan records to retain.
 	MaxHistory int `mapstructure:"max_history"`
+	// OfflineDir overrides the default ~/.vigyl/offline data location.
+	OfflineDir string `mapstructure:"offline_dir"`
 }
 
 type AuthConfig struct {

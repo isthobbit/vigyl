@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -15,6 +16,15 @@ import (
 // ErrOSVNotFound is returned when the osv-scanner binary is not in PATH.
 var ErrOSVNotFound = errors.New("osv-scanner not found — install it: https://google.github.io/osv-scanner/installation/")
 
+// Options controls whether osv-scanner may touch the network.
+type Options struct {
+	// Offline matches against local databases only and disables every
+	// network feature (osv.dev API queries, dependency resolution).
+	Offline bool
+	// DBDir is exported as OSV_SCANNER_LOCAL_DB_CACHE_DIRECTORY when offline.
+	DBDir string
+}
+
 // defaultTimeout is used when the caller passes timeout=0.
 const defaultTimeout = 10 * time.Minute
 
@@ -23,7 +33,7 @@ const defaultTimeout = 10 * time.Minute
 // OSV-Scanner exits 0 (no findings) or 1 (findings found or error).
 // We distinguish between the two by checking whether stdout contains
 // valid JSON output. Pass timeout=0 to use the built-in 10-minute default.
-func Run(scanPath string, verbose bool, timeout time.Duration, excludePaths []string) (*Result, error) {
+func Run(scanPath string, verbose bool, timeout time.Duration, excludePaths []string, opts Options) (*Result, error) {
 	if timeout <= 0 {
 		timeout = defaultTimeout
 	}
@@ -41,23 +51,18 @@ func Run(scanPath string, verbose bool, timeout time.Duration, excludePaths []st
 	}
 
 	// 3. Build the osv-scanner command.
-	//    --format json  → machine-readable output we can parse
-	//    --recursive    → scan subdirectories for manifest files
-	args := []string{
-		"--format", "json",
-		"--recursive",
-		absPath,
+	supported := helpFlagProbe(osvPath)
+	if opts.Offline && !supported("--offline") {
+		return nil, errors.New("osv-scanner offline mode needs osv-scanner v2 or newer — upgrade it: https://google.github.io/osv-scanner/installation/")
 	}
-
-	for _, p := range excludePaths {
-		args = append(args, "--skip-git")
-		_ = p // OSV-Scanner doesn't support per-path exclusions via CLI flags;
-		// exclusions are handled via config file in a future version.
-	}
+	args := buildArgs(absPath, excludePaths, opts, supported)
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, osvPath, args...)
+	if opts.Offline && opts.DBDir != "" {
+		cmd.Env = append(os.Environ(), "OSV_SCANNER_LOCAL_DB_CACHE_DIRECTORY="+opts.DBDir)
+	}
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -87,6 +92,51 @@ func Run(scanPath string, verbose bool, timeout time.Duration, excludePaths []st
 		ScanPath:     absPath,
 		OSVAvailable: true,
 	}, nil
+}
+
+// buildArgs assembles the osv-scanner command line.
+//
+//	--format json  → machine-readable output we can parse
+//	--recursive    → scan subdirectories for manifest files
+//	--offline      → local databases only, no network access
+//
+// Exclusions use --experimental-exclude with a g: (glob) prefix, which only
+// newer osv-scanner releases understand; older ones scan everything.
+func buildArgs(absPath string, excludePaths []string, opts Options, supported func(flag string) bool) []string {
+	args := []string{
+		"--format", "json",
+		"--recursive",
+	}
+	if opts.Offline {
+		args = append(args, "--offline")
+	}
+	if supported("--experimental-exclude") {
+		for _, p := range excludePaths {
+			args = append(args, "--experimental-exclude", "g:"+p)
+		}
+	}
+	return append(args, absPath)
+}
+
+// helpFlagProbe returns a function reporting whether
+// `osv-scanner scan source --help` mentions a flag. The help text is read
+// once, on first use.
+func helpFlagProbe(osvPath string) func(string) bool {
+	var help []byte
+	loaded := false
+	return func(flag string) bool {
+		if !loaded {
+			help, _ = exec.Command(osvPath, "scan", "source", "--help").CombinedOutput() //nolint // nosemgrep: go.lang.security.audit.dangerous-exec-command.dangerous-exec-command
+			loaded = true
+		}
+		return bytes.Contains(help, []byte(flag))
+	}
+}
+
+// BuildArgsForTest exposes buildArgs for unit testing. Do not call from
+// production code.
+func BuildArgsForTest(absPath string, excludePaths []string, opts Options, supported func(string) bool) []string {
+	return buildArgs(absPath, excludePaths, opts, supported)
 }
 
 // parseOutput unmarshals the osv-scanner JSON report and converts it to our Finding type.

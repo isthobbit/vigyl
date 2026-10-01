@@ -103,5 +103,7 @@ func applyDefaults(v *viper.Viper) {
 	v.SetDefault("scan.timeout", d.Scan.Timeout.String())
 	v.SetDefault("scan.exclude_paths", d.Scan.ExcludePaths)
 	v.SetDefault("scan.semgrep_rules", d.Scan.SemgrepRules)
+	v.SetDefault("scan.offline", d.Scan.Offline)
+	v.SetDefault("storage.offline_dir", d.Storage.OfflineDir)
 	v.SetDefault("storage.max_history", d.Storage.MaxHistory)
 }
