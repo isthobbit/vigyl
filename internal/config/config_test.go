@@ -33,7 +33,19 @@ func TestDefaults_SemgrepRulesIsAuto(t *testing.T) {
 
 // â”€â”€ Load â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+// isolateHome points the home directory at a fresh temp dir so tests never
+// read or write the real ~/.vigyl. os.UserHomeDir reads HOME on Unix but
+// USERPROFILE on Windows, so both are set.
+func isolateHome(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	t.Setenv("USERPROFILE", dir)
+	return dir
+}
+
 func TestLoad_NoConfigFile_ReturnsDefaults(t *testing.T) {
+	isolateHome(t)
 	// Point at a directory with no config file â€” should succeed with defaults.
 	cfg, err := config.Load("")
 	if err != nil {
@@ -129,8 +141,7 @@ func TestMeetsSeverityThreshold(t *testing.T) {
 
 func TestWrite_CreatesFileAndSetsKey(t *testing.T) {
 	// Override home so Write() doesn't touch the real ~/.vigyl directory.
-	dir := t.TempDir()
-	t.Setenv("HOME", dir)
+	dir := isolateHome(t)
 
 	if err := config.Write("scan.fail_on", "low"); err != nil {
 		t.Fatalf("Write() error: %v", err)
