@@ -1,6 +1,6 @@
 # Contributing to jensec
 
-First off — thank you for taking the time to contribute. jensec is built in Kenya for the world, and every issue, idea, and pull request makes it better for developers everywhere.
+First off — thank you for taking the time to contribute. Every issue, idea, and pull request makes jensec better for developers everywhere.
 
 ---
 
@@ -102,7 +102,6 @@ Please **do not** open a public GitHub issue for security vulnerabilities. Inste
 
 ## Community
 
-- Built in Kenya for the world
 - Questions and discussion: open a GitHub issue with the `question` label
 
 We appreciate every contribution, big or small.

@@ -32,7 +32,6 @@ var bannerText = map[int]struct{ code, text string }{
 	4: {"", "secrets · SAST · dependencies"},
 	5: {"", "→ one prioritised risk score"},
 	7: {dim, "your code never leaves your machine"},
-	8: {dim, "built in Kenya for the world"},
 }
 
 const dim = "\033[2m"

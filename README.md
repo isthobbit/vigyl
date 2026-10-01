@@ -14,7 +14,7 @@
  /|     |\     → one prioritised risk score
 (_|     |_)
   |  |  |      your code never leaves your machine
- _|  |  |_     built in Kenya for the world
+ _|  |  |_
 (___/ \___)
 ```
 
