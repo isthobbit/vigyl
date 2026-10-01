@@ -25,6 +25,10 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `scan.semgrep_rules` is now honoured; it was previously ignored.
 - OSV-Scanner exclusions use `--experimental-exclude` instead of adding a
   stray `--skip-git` per excluded path.
+- `scan.exclude_paths` now applies to secrets scanning. Paths were written to a
+  `.gitleaksignore`, which gitleaks reads as finding fingerprints, so they were
+  silently ignored. They now go into a gitleaks config allowlist that extends
+  any existing `.gitleaks.toml`.
 
 ---
 

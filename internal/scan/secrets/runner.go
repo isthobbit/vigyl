@@ -78,17 +78,15 @@ func Run(scanPath string, verbose bool, timeout time.Duration, excludePaths []st
 		"--exit-code", "0",
 	}
 
-	// write a temporary .gitleaksignore file for excluded paths
+	// Excluded paths go in a gitleaks config allowlist. (.gitleaksignore
+	// only holds finding fingerprints, so paths written there are ignored.)
 	if len(excludePaths) > 0 {
-		ignoreFile, err := os.CreateTemp("", "vigyl-gitleaksignore-*")
-		if err == nil {
-			for _, p := range excludePaths {
-				fmt.Fprintln(ignoreFile, p)
-			}
-			ignoreFile.Close()
-			defer os.Remove(ignoreFile.Name())
-			args = append(args, "--gitleaks-ignore-path", ignoreFile.Name())
+		cfgPath, cleanup, err := excludeConfig(absPath, excludePaths)
+		if err != nil {
+			return nil, fmt.Errorf("could not write gitleaks exclusion config: %w", err)
 		}
+		defer cleanup()
+		args = append(args, "--config", cfgPath)
 	}
 
 	// --no-git was introduced in gitleaks v8. Skip on older versions to avoid
