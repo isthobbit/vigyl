@@ -25,7 +25,7 @@ func Open(dbPath ...string) (*DB, error) {
 		if err != nil {
 			return nil, fmt.Errorf("could not find home directory: %w", err)
 		}
-		resolvedPath = filepath.Join(home, ".kinga", "jensec.db")
+		resolvedPath = filepath.Join(home, ".vigyl", "jensec.db")
 	}
 
 	dir := filepath.Dir(resolvedPath)

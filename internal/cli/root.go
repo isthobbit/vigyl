@@ -60,6 +60,8 @@ func init() {
 }
 
 func initConfig() {
+	migrateLegacyDir()
+
 	if cfgFile != "" {
 		viper.SetConfigFile(cfgFile)
 	} else {

@@ -106,4 +106,8 @@ func applyDefaults(v *viper.Viper) {
 	v.SetDefault("scan.offline", d.Scan.Offline)
 	v.SetDefault("storage.offline_dir", d.Storage.OfflineDir)
 	v.SetDefault("storage.max_history", d.Storage.MaxHistory)
+	// viper only maps VIGYL_* environment variables onto keys it already
+	// knows, so every key needs a default, even an empty one.
+	v.SetDefault("storage.db_path", d.Storage.DBPath)
+	v.SetDefault("auth.license_key", d.Auth.LicenseKey)
 }

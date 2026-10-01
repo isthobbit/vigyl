@@ -29,7 +29,7 @@ func init() {
 }
 
 func runReport(cmd *cobra.Command, args []string) error {
-	db, err := store.Open()
+	db, err := store.Open(loadConfig().Storage.DBPath)
 	if err != nil {
 		return fmt.Errorf("could not open scan history: %w", err)
 	}
