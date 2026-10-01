@@ -6,10 +6,16 @@
 ![Go](https://img.shields.io/badge/go-1.22+-blue)
 
 ```
-╭─────────────────────────────────────────╮
-│  jensec · by VIGYL                      │
-│  Local-first DevSecOps scanner          │
-╰─────────────────────────────────────────╯
+  .-"""-.
+ /  o o  \     jensec · by vigyl
+ \   v   /     local-first DevSecOps scanner
+  '.___.'
+  /     \      secrets · SAST · dependencies
+ /|     |\     → one prioritised risk score
+(_|     |_)
+  |  |  |      your code never leaves your machine
+ _|  |  |_     built in Kenya for the world
+(___/ \___)
 ```
 
 jensec is an open-source DevSecOps CLI tool that detects leaked secrets, code vulnerabilities (SAST), and dependency CVEs — all from your terminal, with no cloud account and no sign-up. Your source code is never uploaded, and with `--offline` jensec makes no network calls at all, so it works on air-gapped machines.

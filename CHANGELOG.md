@@ -10,6 +10,9 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- Meerkat sentry banner (the vigil in "vigyl") on `jensec`, `--help`, `version`
+  and at the top of scans. Shown only in an interactive terminal; piped output,
+  CI logs and `--json` get a single header line instead.
 - `jensec doctor`: checks the four scanners (installed, on PATH, version against
   the minimum and tested versions), offline data, the config file and scan
   history, with a fix for each problem. On Windows it finds scanners that winget

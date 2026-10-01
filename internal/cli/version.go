@@ -2,8 +2,10 @@ package cli
 
 import (
 	"fmt"
+	"os"
 	"runtime"
 
+	"github.com/isthobbit/vigyl/pkg/output"
 	"github.com/isthobbit/vigyl/pkg/version"
 	"github.com/spf13/cobra"
 )
@@ -12,6 +14,7 @@ var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print version information",
 	Run: func(cmd *cobra.Command, args []string) {
+		output.PrintBanner(os.Stdout, noColor)
 		fmt.Printf("jensec %s\n", version.Version)
 		fmt.Printf("  commit:   %s\n", version.Commit)
 		fmt.Printf("  built:    %s\n", version.BuildDate)

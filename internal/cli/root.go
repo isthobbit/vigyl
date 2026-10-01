@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/isthobbit/vigyl/pkg/output"
 	"github.com/isthobbit/vigyl/pkg/version"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -22,16 +23,11 @@ var rootCmd = &cobra.Command{
 	Use:     "jensec",
 	Short:   "vigyl — local-first security scanner for developers",
 	Version: version.Version,
-	Long: `
-╭─────────────────────────────────────────╮
-│  jensec · by vigyl                      │
-│  Local-first DevSecOps scanner          │
-│  Built in Kenya for the world           │
-╰─────────────────────────────────────────╯
-
-Scan your code for vulnerabilities and leaked secrets.
-No cloud account required, and your code never leaves your machine.
-Add --offline to scan with no network access at all.`,
+	// Plain-text banner: help is often piped or read in a pager.
+	Long: "\n" + output.Banner(true) + `
+Scan your code for leaked secrets, vulnerable code and vulnerable
+dependencies. No cloud account required. Add --offline to scan with no
+network access at all.`,
 }
 
 // Execute is the entry point called from main.go.

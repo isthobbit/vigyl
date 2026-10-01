@@ -3,6 +3,7 @@ module github.com/isthobbit/vigyl
 go 1.22
 
 require (
+	github.com/mattn/go-isatty v0.0.20
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/viper v1.19.0
 	modernc.org/sqlite v1.29.9
@@ -16,7 +17,6 @@ require (
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
-	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/ncruces/go-strftime v0.1.9 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.2 // indirect
