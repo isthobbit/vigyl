@@ -35,6 +35,9 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `config.yaml` was previously not read, so its settings now apply.
 
 ### Fixed
+- Release archives are named `jensec_<os>_<arch>` without the version, so the
+  README's `releases/latest/download/...` install links work. They returned 404
+  for every earlier release.
 - `VIGYL_STORAGE_DB_PATH` and `VIGYL_AUTH_LICENSE_KEY` were ignored.
 - `jensec report` ignored `storage.db_path`.
 - `scan.semgrep_rules` is now honoured; it was previously ignored.
