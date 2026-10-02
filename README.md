@@ -412,8 +412,25 @@ Dependency ecosystems: Go modules · PyPI · npm · Cargo · Maven · RubyGems �
 
 ## Roadmap
 
-- **v0.2** — Correlation engine, dependency scanning (Trivy + OSV), risk scoring with named bands (LOW → SEVERE), structured recommendations, and trend analysis
-- **v0.3** — Docker image scanning, IaC scanning (Terraform, Kubernetes, CloudFormation), pre-commit hook installer, local web dashboard, M-Pesa and mobile money secret detection rules, Kenya DPA compliance report
+Released (see [CHANGELOG.md](CHANGELOG.md) for details):
+
+- **v0.1** — Secrets scanning (Gitleaks), SAST (Semgrep), local scan history, CI integration
+- **v0.2** — Dependency scanning (Trivy + OSV), correlation engine, risk scoring with named bands (LOW → SEVERE), structured recommendations, trend analysis; v0.2.1 added `jensec ignore`
+
+Next:
+
+- **v0.3** — Offline and air-gapped scanning (`--offline`, `jensec offline`), `jensec doctor`, scan history moved to `~/.vigyl` (done, not yet released)
+
+Planned:
+
+- SARIF output for GitHub Code Scanning
+- Pre-commit hook installer
+- Docker image scanning and IaC scanning (Terraform, Kubernetes, CloudFormation)
+- `govulncheck` integration for Go dependencies
+- Local web dashboard, multi-repo scan history and self-hosted team sharing
+- HTML and PDF report export
+- M-Pesa and mobile money secret detection rules
+- Kenya DPA compliance report
 
 ---
 

@@ -47,6 +47,34 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [v0.2.1] — 2026-08-01
+
+Published on GitHub as `v2.1.0` by mistake; the tag was corrected to `v0.2.1`.
+
+### Added
+- `jensec ignore <finding-id>` suppresses a finding from future scan output and
+  recommendations, with an optional `--reason`; `jensec ignore list` and
+  `jensec ignore remove` manage ignore rules.
+- Ignored findings are filtered from scan output.
+
+---
+
+## [v0.2.0] — 2026-07-29
+
+### Added
+- Dependency vulnerability scanning via [Trivy](https://aquasecurity.github.io/trivy)
+  and [OSV-Scanner](https://google.github.io/osv-scanner)
+- Correlation engine linking findings across all four scanners
+- Risk scoring with named bands: LOW → MEDIUM → HIGH → CRITICAL → SEVERE
+- Recommendations ordered by effort (IMMEDIATE → SHORT TERM → LONG TERM),
+  deduplicated per rule and file
+- Trend analysis across scans, with recurring findings capped to the top 10
+
+### Security
+- GitHub Actions pinned to commit SHAs
+
+---
+
 ## [v0.1.0] — 2026-06-06
 
 ### Added
@@ -70,13 +98,4 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Upcoming
 
-### [v0.2.0] — planned
-- SARIF output format (`--format sarif`) for GitHub Code Scanning integration
-- `govulncheck` integration for Go dependency vulnerability scanning
-- `jensec report export` — shareable HTML snapshot of scan results
-- Asset management — `jensec assets` command surfacing multi-repo scan history
-
-### [v0.3.0] — planned
-- HTML and PDF report formats
-- Risk scoring engine
-- Team scan history sharing (self-hosted)
+Planned work is tracked in the [Roadmap](README.md#roadmap) section of the README.
