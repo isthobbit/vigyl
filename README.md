@@ -29,7 +29,8 @@ Powered by [Gitleaks](https://github.com/gitleaks/gitleaks) (secrets), [Semgrep]
 - Secrets detection — API keys, tokens, and passwords committed to source code
 - SAST — common vulnerability patterns across 15+ languages
 - Dependency scanning — CVE detection via Trivy and OSV-Scanner across Go, Python, Node.js, and more
-- Correlation engine — links findings across all four scanners; a secret in a file with a known CVE scores higher than either finding alone
+- Correlation engine — links findings across all four scanners: a secret or code vulnerability in a file that imports a package with a known CVE scores higher than any finding alone, and every raised score lists its reasons (see [How scoring works](#how-scoring-works))
+- One finding per vulnerability — when Trivy and OSV-Scanner report the same CVE, it appears once, marked as found by both
 - Risk scoring — every scan produces a named risk band: LOW → MEDIUM → HIGH → CRITICAL → SEVERE
 - Recommendations — prioritised, actionable fixes ordered by effort (IMMEDIATE → SHORT TERM → LONG TERM)
 - Trend analysis — tracks whether your codebase is getting more or less secure across scans
@@ -224,6 +225,24 @@ After a scan, jensec produces:
 
 Findings — grouped by scanner, showing severity, file, line, and message for each issue.
 
+Top risks — the highest-scoring files and packages, each with the reasons behind its score:
+```
+Top risks  overall 6.5/10 CRITICAL
+
+  HIGH      app/db.py  (file, score 6.0)
+            • secret: github-pat (line 5)
+            • CRITICAL tainted-sql-string (line 10)
+            • secret in the same file as a code vulnerability
+            • imports requests 2.19.0 — 5 known vulnerabilities, worst CVE-2018-18074 (HIGH), fixed in 2.20.0
+
+  HIGH      minimist@1.2.0  (package, score 5.2)
+            • 2 known vulnerabilities, worst CVE-2021-44906 (CRITICAL), fixed in 1.2.6
+            • reported by both Trivy and OSV-Scanner
+            • no direct import found; it may still be used by another dependency
+```
+
+The same list is in `--json` output as `top_risks`, with each reason in `why`.
+
 Recommendations — prioritised list of actionable fixes, ordered by effort:
 ```
 1. CRITICAL  [SHORT TERM]  Multiple vulnerabilities in python-jose@3.3.0
@@ -343,9 +362,9 @@ storage:
 correlation:
   weights:
     secret_in_vulnerable_file: 1.0
+    secret_in_file_using_vulnerable_package: 0.9
     vuln_code_in_vulnerable_file: 0.8
     cve_confirmed_by_multiple_scanners: 0.7
-    secret_and_vuln_in_same_file: 0.6
     package_confirmed_by_multiple_scanners: 0.6
     multiple_cves_in_same_package: 0.5
     multiple_vulns_in_same_file: 0.4
@@ -376,6 +395,62 @@ Every scan produces an overall risk score mapped to a named band:
 | HIGH | 4.1 – 6.0 | Significant issues requiring attention |
 | CRITICAL | 6.1 – 8.0 | Serious issues requiring immediate action |
 | SEVERE | 8.1 – 10.0 | Multiple critical issues, do not ship |
+
+---
+
+## How scoring works
+
+jensec scores every file and every vulnerable package version, then combines
+them into the scan's overall score.
+
+1. **Base score.** Each file or package starts at its worst finding's severity:
+   LOW 1, MEDIUM 2, HIGH 3, CRITICAL 4.
+2. **Correlation bonuses.** Each rule below that applies adds its weight. A
+   rule counts once per link, so ten secrets next to one vulnerability count
+   once, while a file importing two vulnerable packages counts twice.
+3. **Cap.** Bonuses can raise a score by at most 2 above its base.
+4. **Overall score.** The average of all file and package scores, plus 30% of
+   the highest one, capped at 10. The band comes from the table above.
+
+| Rule | Weight | Applies when |
+|------|--------|--------------|
+| `secret_in_vulnerable_file` | 1.0 | a secret sits in a file that also has a code vulnerability |
+| `secret_in_file_using_vulnerable_package` | 0.9 | a secret sits in a file that imports a package with a known CVE |
+| `vuln_code_in_vulnerable_file` | 0.8 | a code vulnerability sits in a file that imports a package with a known CVE |
+| `cve_confirmed_by_multiple_scanners` | 0.7 | Trivy and OSV-Scanner both report the same CVE in the same package |
+| `package_confirmed_by_multiple_scanners` | 0.6 | both scanners flag the same package, but under different advisory IDs |
+| `multiple_cves_in_same_package` | 0.5 | a package has more than one distinct known vulnerability |
+| `multiple_vulns_in_same_file` | 0.4 | a file has more than one code vulnerability |
+
+Every weight can be changed under `correlation.weights` in the config file;
+setting one to `0` removes that rule's bonus (the link is still shown).
+
+### Linking dependencies to code
+
+Trivy and OSV-Scanner report which package versions are vulnerable, not
+where they are used. jensec reads the import statements in your source to
+find which files import each vulnerable package:
+
+- **Go** (`import`), **JavaScript/TypeScript** (`import`, `require()`,
+  dynamic `import()`) and **Python** (`import`, `from … import`) are
+  supported. Imports inside strings and comments are ignored.
+- A package is only linked to files under the directory of the manifest it
+  came from, so in a monorepo a CVE in one service is not blamed on another.
+- `vendor/`, `node_modules/`, virtual environments and `scan.exclude_paths`
+  are skipped.
+
+### What jensec will not do
+
+- **Downgrade on uncertainty.** A vulnerable package that no file imports
+  directly is labelled "no direct import found; it may still be used by
+  another dependency", but its score is not lowered: another dependency may
+  still use it. For ecosystems jensec cannot read imports for (Java, Ruby,
+  PHP, Rust), it says "import use unknown" rather than guessing.
+- **Count one vulnerability twice.** Trivy and OSV-Scanner often name the same
+  vulnerability differently (a CVE ID versus a GHSA or PYSEC ID). jensec
+  matches them through OSV's aliases, and when it counts a package's
+  vulnerabilities, it uses the larger of the two scanners' counts rather than
+  adding them.
 
 ---
 

@@ -9,6 +9,40 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- Dependency findings are linked to the source files that import them (Go,
+  JavaScript/TypeScript, Python), scoped to each manifest's directory so
+  monorepos link correctly. New rule `secret_in_file_using_vulnerable_package`;
+  `vuln_code_in_vulnerable_file` now uses real imports instead of matching the
+  package name against the file path.
+- "Top risks" after each scan: the highest-scoring files and packages with the
+  reasons behind each score. Also in `--json` as `top_risks`, with
+  `risk_score` and `risk_band`.
+- `--json` dependency findings have `found_by` and `manifest`; a CVE reported by
+  both Trivy and OSV-Scanner appears once.
+- README section "How scoring works".
+
+### Changed
+- Unimported vulnerable packages are labelled, never downgraded; unsupported
+  ecosystems say "import use unknown".
+- Each correlation counts once per link, so repeated findings no longer inflate
+  a score.
+- Removed `secret_and_vuln_in_same_file`, which duplicated
+  `secret_in_vulnerable_file` and counted the same fact twice.
+- Database schema v4 records each dependency finding's manifest.
+
+### Fixed
+- OSV-Scanner severities: CVSS vectors were scored as LOW, so OSV reported no
+  HIGH or CRITICAL findings. The group's numeric score is now used, and an
+  unscorable vector counts as MEDIUM.
+- OSV findings now carry their CVE ID from the advisory's aliases, so they match
+  Trivy's. Previously a finding could also be given an unrelated CVE.
+- On Windows, gitleaks and semgrep report the same file with different path
+  separators, so the same-file rules never matched. Paths are now normalised.
+- `multiple_cves_in_same_package` counted one CVE reported by both scanners as
+  two.
+- `correlation.weights` and `trends` settings in the config were ignored.
+
 ### Removed
 - The one-time move of scan history and config from the old data folder,
   added in v0.3.0. Every release before v0.3.0 had no users besides the
