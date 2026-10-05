@@ -22,6 +22,8 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   both Trivy and OSV-Scanner appears once.
 - README section "How scoring works".
 - `top_risks` entries for packages have `versions`.
+- README example: a scan of OWASP NodeGoat compared with running the four
+  scanners directly.
 
 ### Changed
 - Unimported vulnerable packages are labelled, never downgraded; unsupported

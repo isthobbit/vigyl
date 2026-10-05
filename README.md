@@ -20,7 +20,7 @@
 
 jensec is an open-source DevSecOps CLI tool that detects leaked secrets, code vulnerabilities (SAST), and dependency CVEs — all from your terminal, with no cloud account and no sign-up. Your source code is never uploaded, and with `--offline` jensec makes no network calls at all, so it works on air-gapped machines.
 
-Powered by [Gitleaks](https://github.com/gitleaks/gitleaks) (secrets), [Semgrep](https://semgrep.dev) (SAST), [Trivy](https://aquasecurity.github.io/trivy) and [OSV-Scanner](https://google.github.io/osv-scanner) (dependencies), with a correlation engine that links findings across all four scanners into a unified risk score.
+Powered by [Gitleaks](https://github.com/gitleaks/gitleaks) (secrets), [Semgrep](https://semgrep.dev) (SAST), [Trivy](https://aquasecurity.github.io/trivy) and [OSV-Scanner](https://google.github.io/osv-scanner) (dependencies), with a correlation engine that links findings across all four scanners into a unified risk score. See [a scan of OWASP NodeGoat](#example-owasp-nodegoat) for what that adds over running the scanners yourself.
 
 ---
 
@@ -272,6 +272,70 @@ Trend Analysis
   Deps:        +4
 
   ⚠  12 finding(s) have persisted across multiple scans
+```
+
+---
+
+## Example: OWASP NodeGoat
+
+[NodeGoat](https://github.com/OWASP/NodeGoat) is a deliberately vulnerable
+Node.js app. These results are from commit `c5cb68a`, scanned with
+`jensec scan all --offline` and offline data synced on 2026-10-05. Newer
+vulnerability data will give somewhat different numbers.
+
+**Running the four scanners yourself** gives 440 findings in four formats:
+
+| Scanner | Findings |
+|---------|----------|
+| Gitleaks | 3 secrets |
+| Semgrep | 35, of which 4 are secrets rather than code vulnerabilities |
+| Trivy | 90 dependency vulnerabilities |
+| OSV-Scanner | 312: 86 of them are vulnerabilities Trivy also reports, and 9 list a CVE a second time for the same package version |
+
+None of them says which of the 132 vulnerable package versions the app's
+code uses, or that a file with hardcoded password hashes also imports a
+vulnerable database driver.
+
+**jensec** reports each vulnerability once (307 dependency findings, 86
+marked as found by both Trivy and OSV-Scanner), lists Semgrep's secrets with
+the other secrets, and links packages to the files that import them:
+
+```
+Top risks  overall 4.9/10 HIGH
+
+  HIGH      underscore@1.9.1, 1.8.3  (package, score 5.2)
+            • 1.9.1: 2 known vulnerabilities, worst CVE-2021-23358 (CRITICAL), fixed in 1.12.1
+            • reported by both Trivy and OSV-Scanner
+            • imported by config/config.js
+            • also vulnerable: 1.8.3 (score 4.5)
+  ...
+  HIGH      mongodb@2.2.36  (package, score 5.0)
+            • GHSA-mh5c-679w-hh4r (HIGH), fixed in 3.1.13
+            • reported by both Trivy and OSV-Scanner
+            • imported by artifacts/db-reset.js, server.js
+            • artifacts/db-reset.js, which imports it, contains a secret
+            • server.js, which imports it, has a code vulnerability
+
+  HIGH      server.js  (file, score 5.0)
+            • HIGH express-cookie-session-default-name (line 78)
+            • ...
+            • imports body-parser 1.18.3 — 2 known vulnerabilities, worst CVE-2024-45590 (HIGH), fixed in 1.20.3
+            • imports marked 0.3.5 — 7 known vulnerabilities, worst CVE-2017-16114 (HIGH), fixed in 0.3.9
+            • imports mongodb 2.2.36 — GHSA-mh5c-679w-hh4r (HIGH), fixed in 3.1.13
+            • ...
+```
+
+The omitted entries are packages such as `minimist` and `tar`, with CRITICAL
+vulnerabilities but labelled "no direct import found". jensec keeps their
+scores rather than guessing they are unused; see
+[What jensec will not do](#what-jensec-will-not-do).
+
+The first recommendation joins the two halves:
+
+```
+1. CRITICAL  [IMMEDIATE]  Secret in a file that imports vulnerable mongodb: artifacts/db-reset.js
+   Do:  Rotate the credential and move it out of the source code, then upgrade
+        mongodb from 2.2.36 to 3.1.13.
 ```
 
 ---
