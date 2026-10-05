@@ -7,7 +7,7 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
-## [Unreleased]
+## [v0.3.0] — 2026-10-05
 
 ### Added
 - Meerkat sentry banner (the vigil in "vigyl") on `jensec`, `--help`, `version`
