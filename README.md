@@ -416,10 +416,7 @@ Released (see [CHANGELOG.md](CHANGELOG.md) for details):
 
 - **v0.1** — Secrets scanning (Gitleaks), SAST (Semgrep), local scan history, CI integration
 - **v0.2** — Dependency scanning (Trivy + OSV), correlation engine, risk scoring with named bands (LOW → SEVERE), structured recommendations, trend analysis; v0.2.1 added `jensec ignore`
-
-Next:
-
-- **v0.3** — Offline and air-gapped scanning (`--offline`, `jensec offline`), `jensec doctor`, scan history moved to `~/.vigyl` (done, not yet released)
+- **v0.3** — Offline and air-gapped scanning (`--offline`, `jensec offline`), `jensec doctor`, scan history moved to `~/.vigyl`
 
 Planned:
 
