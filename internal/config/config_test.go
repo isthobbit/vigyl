@@ -168,3 +168,22 @@ func TestLoad_StorageDBPathFromEnv(t *testing.T) {
 		t.Errorf("VIGYL_STORAGE_DB_PATH ignored: got %q", cfg.Storage.DBPath)
 	}
 }
+
+func TestLoad_CorrelationWeightsAndTrends(t *testing.T) {
+	isolateHome(t)
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+	content := "correlation:\n  weights:\n    secret_in_vulnerable_file: 0.25\ntrends:\n  lookback_scans: 9\n"
+	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := cfg.Correlation.Weights["secret_in_vulnerable_file"]; got != 0.25 {
+		t.Errorf("correlation weight not read: %v", cfg.Correlation.Weights)
+	}
+	if cfg.Trends.LookbackScans != 9 || cfg.Trends.RecurringThreshold != 3 {
+		t.Errorf("trends not read with defaults filled in: %+v", cfg.Trends)
+	}
+}

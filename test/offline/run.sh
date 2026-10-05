@@ -82,8 +82,10 @@ stderr = open(sys.argv[2]).read()
 counts = {
     "secrets": len(report["secrets"]),
     "sast": len(report["sast"]),
-    "trivy": sum(1 for d in report["dependencies"] if d["scanner"] == "trivy"),
-    "osv": sum(1 for d in report["dependencies"] if d["scanner"] == "osv"),
+    # A vulnerability both scanners report is merged into one finding;
+    # found_by lists every scanner that reported it.
+    "trivy": sum(1 for d in report["dependencies"] if "trivy" in d["found_by"]),
+    "osv": sum(1 for d in report["dependencies"] if "osv" in d["found_by"]),
 }
 print("findings per scanner:", counts)
 

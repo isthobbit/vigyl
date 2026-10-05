@@ -49,6 +49,9 @@ type DepFindingRecord struct {
 	Ecosystem    string `json:"ecosystem"`     // e.g. "Go" | "npm" | "PyPI"
 	FixedVersion string `json:"fixed_version"` // e.g. "1.2.4" (empty if no fix available)
 	Description  string `json:"description"`
+	// Manifest is the manifest or lockfile the package came from, relative
+	// to the scan root (e.g. "services/api/package-lock.json").
+	Manifest string `json:"manifest,omitempty"`
 }
 
 // DepFingerprint returns a stable fingerprint for a dependency finding.

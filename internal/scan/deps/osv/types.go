@@ -16,6 +16,9 @@ type Finding struct {
 	Ecosystem    string
 	FixedVersion string
 	Description  string
+	// Manifest is the manifest or lockfile the package came from,
+	// slash-separated and relative to the scan root.
+	Manifest string
 }
 
 // osvReport is the top-level shape of `osv-scanner --format json` output.
@@ -48,7 +51,10 @@ type osvPackageInfo struct {
 }
 
 type osvVulnerability struct {
-	ID       string        `json:"id"`
+	ID string `json:"id"`
+	// Aliases are the same vulnerability's IDs in other databases,
+	// usually including its CVE ID.
+	Aliases  []string      `json:"aliases"`
 	Summary  string        `json:"summary"`
 	Details  string        `json:"details"`
 	Severity []osvSeverity `json:"severity"`
@@ -75,6 +81,11 @@ type osvEvent struct {
 }
 
 // osvGroup links vulnerabilities to aliases (e.g. CVE IDs).
+// osvGroup is a set of OSV IDs that describe one vulnerability.
 type osvGroup struct {
-	IDs []string `json:"ids"`
+	IDs     []string `json:"ids"`
+	Aliases []string `json:"aliases"`
+	// MaxSeverity is the highest CVSS base score in the group, as a number
+	// such as "7.5" (empty when no score is published).
+	MaxSeverity string `json:"max_severity"`
 }

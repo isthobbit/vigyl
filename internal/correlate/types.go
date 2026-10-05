@@ -1,10 +1,19 @@
 package correlate
 
-import "github.com/isthobbit/vigyl/internal/store"
+import (
+	"github.com/isthobbit/vigyl/internal/imports"
+	"github.com/isthobbit/vigyl/internal/store"
+)
 
 // Input holds all findings from a single scan, ready for correlation.
 type Input struct {
-	ScanID       int64
+	ScanID int64
+	// Root is the scanned directory. Finding paths are normalised against it
+	// so the same file compares equal across scanners.
+	Root string
+	// Imports maps source files to the packages they import. When nil, the
+	// rules that link dependencies to code are skipped.
+	Imports      *imports.Index
 	CodeFindings []store.CodeFindingRecord
 	DepFindings  []store.DepFindingRecord
 }
@@ -14,18 +23,31 @@ type CorrelationRule struct {
 	Reason      string
 	Weight      float64
 	Directional bool
+	// Description says, in one sentence, what the rule links.
+	Description string
 }
 
-// DefaultRules are the seven correlation rules with their default weights.
-// All weights are overridable via config.
+// Rule reasons.
+const (
+	ReasonSecretInVulnerableFile    = "secret_in_vulnerable_file"
+	ReasonSecretUsingVulnerableDep  = "secret_in_file_using_vulnerable_package"
+	ReasonVulnCodeInVulnerableFile  = "vuln_code_in_vulnerable_file"
+	ReasonCVEConfirmed              = "cve_confirmed_by_multiple_scanners"
+	ReasonPackageConfirmed          = "package_confirmed_by_multiple_scanners"
+	ReasonMultipleCVEsInSamePackage = "multiple_cves_in_same_package"
+	ReasonMultipleVulnsInSameFile   = "multiple_vulns_in_same_file"
+)
+
+// DefaultRules are the correlation rules with their default weights. All
+// weights are overridable via the correlation.weights config.
 var DefaultRules = []CorrelationRule{
-	{Reason: "secret_in_vulnerable_file", Weight: 1.0, Directional: true},
-	{Reason: "vuln_code_in_vulnerable_file", Weight: 0.8, Directional: true},
-	{Reason: "cve_confirmed_by_multiple_scanners", Weight: 0.7, Directional: true},
-	{Reason: "secret_and_vuln_in_same_file", Weight: 0.6, Directional: false},
-	{Reason: "package_confirmed_by_multiple_scanners", Weight: 0.6, Directional: false},
-	{Reason: "multiple_cves_in_same_package", Weight: 0.5, Directional: false},
-	{Reason: "multiple_vulns_in_same_file", Weight: 0.4, Directional: false},
+	{ReasonSecretInVulnerableFile, 1.0, true, "a secret sits in a file that also has a code vulnerability"},
+	{ReasonSecretUsingVulnerableDep, 0.9, true, "a secret sits in a file that imports a package with a known CVE"},
+	{ReasonVulnCodeInVulnerableFile, 0.8, true, "a code vulnerability sits in a file that imports a package with a known CVE"},
+	{ReasonCVEConfirmed, 0.7, true, "Trivy and OSV-Scanner both report the same CVE in the same package"},
+	{ReasonPackageConfirmed, 0.6, false, "Trivy and OSV-Scanner both flag the same package, under different advisory IDs"},
+	{ReasonMultipleCVEsInSamePackage, 0.5, false, "a package has more than one distinct known vulnerability"},
+	{ReasonMultipleVulnsInSameFile, 0.4, false, "a file has more than one code vulnerability"},
 }
 
 // severityRank maps severity strings to numeric ranks for scoring.
@@ -49,6 +71,36 @@ var RiskBandThresholds = []struct {
 	{10.0, store.RiskBandSevere},
 }
 
+// BandFor returns the named band for a score.
+func BandFor(score float64) store.RiskBand {
+	for _, t := range RiskBandThresholds {
+		if score <= t.Max {
+			return t.Band
+		}
+	}
+	return store.RiskBandSevere
+}
+
+// Result is what a correlation run produced, for display.
+type Result struct {
+	// Overall is the scan's risk score, 0–10.
+	Overall float64
+	// Risks are the scored files and packages, highest first.
+	Risks []Risk
+}
+
+// Risk is one scored file or package and the reasons behind its score.
+type Risk struct {
+	// Kind is "file" or "package".
+	Kind string `json:"kind"`
+	// Name is a path relative to the scan root, or package@version.
+	Name  string         `json:"name"`
+	Score float64        `json:"score"`
+	Band  store.RiskBand `json:"band"`
+	// Why lists, in plain language, what contributed to the score.
+	Why []string `json:"why"`
+}
+
 // correlation is an internal representation before it is persisted.
 type correlation struct {
 	CodeFindingID   *int64
@@ -58,20 +110,4 @@ type correlation struct {
 	Directional     bool
 	SourceFindingID *int64
 	TargetFindingID *int64
-}
-
-// fileRiskEntry accumulates risk score data for a single file.
-type fileRiskEntry struct {
-	File          string
-	BaseScore     float64
-	CompoundBonus float64
-	FindingCount  int
-}
-
-// packageRiskEntry accumulates risk score data for a single package.
-type packageRiskEntry struct {
-	Package       string
-	BaseScore     float64
-	CompoundBonus float64
-	FindingCount  int
 }

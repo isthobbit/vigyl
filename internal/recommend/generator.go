@@ -33,10 +33,10 @@ func Generate(
 		switch c.Reason {
 		case "secret_in_vulnerable_file":
 			rec = secretInVulnerableFile(c, codeByID)
+		case "secret_in_file_using_vulnerable_package":
+			rec = secretUsingVulnerablePackage(c, codeByID, depByID)
 		case "cve_confirmed_by_multiple_scanners":
 			rec = cveConfirmedByMultipleScanners(c, depByID)
-		case "secret_and_vuln_in_same_file":
-			rec = secretAndVulnInSameFile(c, codeByID)
 		case "multiple_cves_in_same_package":
 			rec = multipleCVEsInSamePackage(c, depByID)
 		case "multiple_vulns_in_same_file":
@@ -91,21 +91,58 @@ func secretInVulnerableFile(c store.CorrelationRecord, codeByID map[int64]store.
 	}
 
 	refs := []int64{secret.ID}
+	vulnDesc, fixSuffix := "a code vulnerability", ""
 	if c.SourceFindingID != nil {
-		refs = append(refs, *c.SourceFindingID)
+		if vuln, ok := codeByID[*c.SourceFindingID]; ok {
+			refs = append(refs, vuln.ID)
+			vulnDesc = fmt.Sprintf("a %s %s vulnerability on line %d", vuln.Severity, vuln.RuleID, vuln.Line)
+			fixSuffix = fmt.Sprintf(", and fix the %s finding on line %d", vuln.RuleID, vuln.Line)
+		}
 	}
 
 	return &Recommendation{
 		Priority: "CRITICAL",
 		Title:    fmt.Sprintf("Exposed credential in exploitable file: %s", shortPath(secret.File)),
 		Context: fmt.Sprintf(
-			"A secret was found in %s which also contains a %s vulnerability. "+
-				"An attacker exploiting the vulnerability may also access the credential.",
-			secret.File, secret.Severity,
+			"A %s secret on line %d of %s sits in the same file as %s. "+
+				"An attacker exploiting the vulnerability may also reach the credential.",
+			secret.RuleID, secret.Line, secret.File, vulnDesc,
 		),
-		Action:      fmt.Sprintf("Rotate the credential immediately, then fix the vulnerability in %s before redeploying.", secret.File),
+		Action:      fmt.Sprintf("Rotate the credential immediately, move it out of the source code%s before redeploying.", fixSuffix),
 		Effort:      EffortImmediate,
 		FindingRefs: refs,
+	}
+}
+
+func secretUsingVulnerablePackage(c store.CorrelationRecord, codeByID map[int64]store.CodeFindingRecord, depByID map[int64]store.DepFindingRecord) *Recommendation {
+	if c.CodeFindingID == nil || c.DepFindingID == nil {
+		return nil
+	}
+	secret, ok := codeByID[*c.CodeFindingID]
+	if !ok {
+		return nil
+	}
+	dep, ok := depByID[*c.DepFindingID]
+	if !ok {
+		return nil
+	}
+
+	upgrade := fmt.Sprintf("upgrade %s (no fixed version is published yet; consider replacing it)", dep.Package)
+	if dep.FixedVersion != "" {
+		upgrade = fmt.Sprintf("upgrade %s from %s to %s", dep.Package, dep.Version, dep.FixedVersion)
+	}
+
+	return &Recommendation{
+		Priority: "CRITICAL",
+		Title:    fmt.Sprintf("Secret in a file that imports vulnerable %s: %s", dep.Package, shortPath(secret.File)),
+		Context: fmt.Sprintf(
+			"%s contains a %s secret on line %d and imports %s %s, which has %s (%s). "+
+				"Code that handles the credential depends on a package with a known vulnerability.",
+			secret.File, secret.RuleID, secret.Line, dep.Package, dep.Version, dep.CVEID, dep.Severity,
+		),
+		Action:      fmt.Sprintf("Rotate the credential and move it out of the source code, then %s.", upgrade),
+		Effort:      EffortImmediate,
+		FindingRefs: []int64{secret.ID, dep.ID},
 	}
 }
 
@@ -137,38 +174,6 @@ func cveConfirmedByMultipleScanners(c store.CorrelationRecord, depByID map[int64
 			dep.CVEID, dep.Package, dep.Version,
 		),
 		Action:      fixMsg,
-		Effort:      EffortShortTerm,
-		FindingRefs: refs,
-	}
-}
-
-func secretAndVulnInSameFile(c store.CorrelationRecord, codeByID map[int64]store.CodeFindingRecord) *Recommendation {
-	if c.CodeFindingID == nil {
-		return nil
-	}
-	secret, ok := codeByID[*c.CodeFindingID]
-	if !ok {
-		return nil
-	}
-
-	refs := []int64{secret.ID}
-	actionSuffix := ""
-	if c.TargetFindingID != nil {
-		if vuln, ok := codeByID[*c.TargetFindingID]; ok {
-			refs = append(refs, vuln.ID)
-			actionSuffix = fmt.Sprintf(" and address the %s finding on line %d.", vuln.RuleID, vuln.Line)
-		}
-	}
-
-	return &Recommendation{
-		Priority: "HIGH",
-		Title:    fmt.Sprintf("Secret and vulnerability co-located in %s", shortPath(secret.File)),
-		Context: fmt.Sprintf(
-			"A leaked credential and a code vulnerability exist in %s, "+
-				"creating two independent attack vectors.",
-			secret.File,
-		),
-		Action:      "Rotate the credential" + actionSuffix,
 		Effort:      EffortShortTerm,
 		FindingRefs: refs,
 	}

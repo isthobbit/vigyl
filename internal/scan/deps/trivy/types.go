@@ -16,6 +16,9 @@ type Finding struct {
 	Ecosystem    string
 	FixedVersion string
 	Description  string
+	// Manifest is the manifest or lockfile the package came from,
+	// slash-separated and relative to the scan root.
+	Manifest string
 }
 
 // trivyReport is the top-level shape of `trivy fs --format json` output.

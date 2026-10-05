@@ -5,10 +5,30 @@ import "time"
 // Config is the canonical in-memory representation of jensec configuration.
 // Every field has a zero-value-safe default applied by Defaults().
 type Config struct {
-	Output  OutputConfig  `mapstructure:"output"`
-	Scan    ScanConfig    `mapstructure:"scan"`
-	Storage StorageConfig `mapstructure:"storage"`
-	Auth    AuthConfig    `mapstructure:"auth"`
+	Output      OutputConfig      `mapstructure:"output"`
+	Scan        ScanConfig        `mapstructure:"scan"`
+	Storage     StorageConfig     `mapstructure:"storage"`
+	Auth        AuthConfig        `mapstructure:"auth"`
+	Correlation CorrelationConfig `mapstructure:"correlation"`
+	Trends      TrendsConfig      `mapstructure:"trends"`
+}
+
+// CorrelationConfig tunes the correlation engine.
+type CorrelationConfig struct {
+	// Weights overrides individual rule weights by rule name, e.g.
+	// secret_in_vulnerable_file: 1.0. Unlisted rules keep their defaults.
+	Weights map[string]float64 `mapstructure:"weights"`
+}
+
+// TrendsConfig tunes trend analysis across scans.
+type TrendsConfig struct {
+	// LookbackScans is how many previous scans to compare against.
+	LookbackScans int `mapstructure:"lookback_scans"`
+	// MinScansRequired is how many scans are needed before trends are shown.
+	MinScansRequired int `mapstructure:"min_scans_required"`
+	// RecurringThreshold is how many consecutive scans a finding must appear
+	// in before it is flagged as recurring.
+	RecurringThreshold int `mapstructure:"recurring_threshold"`
 }
 
 type OutputConfig struct {
@@ -65,6 +85,11 @@ func Defaults() Config {
 		},
 		Storage: StorageConfig{
 			MaxHistory: 100,
+		},
+		Trends: TrendsConfig{
+			LookbackScans:      5,
+			MinScansRequired:   2,
+			RecurringThreshold: 3,
 		},
 	}
 }

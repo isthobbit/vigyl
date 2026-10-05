@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/isthobbit/vigyl/internal/correlate"
 	"github.com/isthobbit/vigyl/internal/recommend"
 	"github.com/isthobbit/vigyl/internal/scan/sast"
 	"github.com/isthobbit/vigyl/internal/scan/secrets"
@@ -218,5 +219,31 @@ func effortBadge(e recommend.Effort) string {
 		return "[LONG TERM]"
 	default:
 		return ""
+	}
+}
+
+// PrintTopRisks lists the highest-scoring files and packages with the
+// reasons behind each score.
+func PrintTopRisks(res *correlate.Result, noColor bool) {
+	if res == nil {
+		return
+	}
+	risks := topRisks(res.Risks)
+	if len(risks) == 0 {
+		return
+	}
+	fmt.Printf("\n%s  %s\n\n",
+		colorize(noColor, bold, "Top risks"),
+		colorize(noColor, dim, fmt.Sprintf("overall %.1f/10 %s", res.Overall, correlate.BandFor(res.Overall))))
+	for _, r := range risks {
+		band := string(r.Band)
+		fmt.Printf("  %s  %s  %s\n",
+			colorize(noColor, severityColour(band), fmt.Sprintf("%-8s", band)),
+			colorize(noColor, bold, r.Name),
+			colorize(noColor, dim, fmt.Sprintf("(%s, score %.1f)", r.Kind, r.Score)))
+		for _, w := range r.Why {
+			fmt.Printf("            • %s\n", w)
+		}
+		fmt.Println()
 	}
 }

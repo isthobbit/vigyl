@@ -71,7 +71,8 @@ CREATE TABLE IF NOT EXISTS dependency_findings (
     cve_id        TEXT    NOT NULL DEFAULT '',
     ecosystem     TEXT    NOT NULL DEFAULT '',
     fixed_version TEXT    NOT NULL DEFAULT '',
-    description   TEXT    NOT NULL DEFAULT ''
+    description   TEXT    NOT NULL DEFAULT '',
+    manifest      TEXT    NOT NULL DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS correlations (
@@ -120,7 +121,7 @@ CREATE INDEX IF NOT EXISTS idx_scans_started_at         ON scans(started_at DESC
 CREATE INDEX IF NOT EXISTS idx_ignored_fingerprint      ON ignored_findings(fingerprint);
 `
 
-const currentSchemaVersion = 3
+const currentSchemaVersion = 4
 
 // migrateV1ToV2 upgrades an existing v1 database to v2.
 const migrateV1ToV2 = `
@@ -204,4 +205,12 @@ CREATE TABLE IF NOT EXISTS ignored_findings (
 CREATE INDEX IF NOT EXISTS idx_ignored_fingerprint ON ignored_findings(fingerprint);
 
 UPDATE schema_version SET version = 3;
+`
+
+// migrateV3ToV4 records which manifest or lockfile each dependency finding
+// came from, so it can be linked to the source files that import it.
+const migrateV3ToV4 = `
+ALTER TABLE dependency_findings ADD COLUMN manifest TEXT NOT NULL DEFAULT '';
+
+UPDATE schema_version SET version = 4;
 `

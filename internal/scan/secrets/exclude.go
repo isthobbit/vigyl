@@ -5,51 +5,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/isthobbit/vigyl/internal/globs"
 )
-
-// sep matches a path separator in either form; gitleaks reports native
-// paths, so Windows findings use backslashes.
-const sep = `[/\\]`
-
-// globToRegex converts a scan.exclude_paths glob into a regex for a gitleaks
-// allowlist. The match may start at any directory boundary, and a pattern that
-// names a directory also matches everything inside it:
-//
-//	fixtures/**     → anything under any fixtures/ directory
-//	**/*_test.go    → any file ending in _test.go
-//	vendor          → a file or directory named vendor, and its contents
-func globToRegex(glob string) string {
-	g := strings.Trim(filepath.ToSlash(glob), "/")
-	var b strings.Builder
-	b.WriteString(`(^|` + sep + `)`)
-	for i := 0; i < len(g); i++ {
-		switch c := g[i]; {
-		case strings.HasPrefix(g[i:], "**/"):
-			b.WriteString(`(.*` + sep + `)?`)
-			i += 2
-		case strings.HasPrefix(g[i:], "**"):
-			b.WriteString(`.*`)
-			i++
-		case c == '*':
-			b.WriteString(`[^/\\]*`)
-		case c == '?':
-			b.WriteString(`[^/\\]`)
-		case c == '/':
-			b.WriteString(sep)
-		default:
-			b.WriteString(regexpQuoteByte(c))
-		}
-	}
-	b.WriteString(`(` + sep + `.*)?$`)
-	return b.String()
-}
-
-func regexpQuoteByte(c byte) string {
-	if strings.ContainsRune(`\.+()|[]{}^$`, rune(c)) {
-		return `\` + string(c)
-	}
-	return string(c)
-}
 
 // excludeConfig builds a gitleaks config that keeps the rules gitleaks would
 // otherwise use and adds an allowlist for the excluded paths.
@@ -102,7 +60,7 @@ func excludeConfig(sourcePath string, excludePaths []string) (configPath string,
 	}
 	b.WriteString("\n[allowlist]\ndescription = \"jensec scan.exclude_paths\"\npaths = [\n")
 	for _, p := range excludePaths {
-		fmt.Fprintf(&b, "  '''%s''',\n", globToRegex(p))
+		fmt.Fprintf(&b, "  '''%s''',\n", globs.ToRegex(p))
 	}
 	b.WriteString("]\n")
 
@@ -118,7 +76,3 @@ func fileExists(path string) bool {
 	info, err := os.Stat(path)
 	return err == nil && !info.IsDir()
 }
-
-// GlobToRegexForTest exposes globToRegex for unit testing. Do not call from
-// production code.
-func GlobToRegexForTest(glob string) string { return globToRegex(glob) }
