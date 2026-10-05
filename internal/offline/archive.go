@@ -19,6 +19,10 @@ import (
 // that are machine-local caches rather than offline data.
 var excludeFromExport = []string{"trivy/fanal"}
 
+// maxImportBytes caps how much an imported archive may unpack to. Real
+// offline data, including Trivy's Java DB, is a few GiB.
+var maxImportBytes int64 = 16 << 30
+
 // Export writes the offline directory to a .tar.gz at dest and a matching
 // dest+".sha256" in `sha256sum` format, so the archive can be checked with
 // either `jensec offline import` or `sha256sum -c`.
@@ -203,6 +207,7 @@ func extract(src, dest string) error {
 	defer gz.Close()
 
 	tr := tar.NewReader(gz)
+	var total int64
 	for {
 		hdr, err := tr.Next()
 		if errors.Is(err, io.EOF) {
@@ -212,16 +217,26 @@ func extract(src, dest string) error {
 			return fmt.Errorf("corrupt archive: %w", err)
 		}
 
-		target, err := safeJoin(dest, hdr.Name)
-		if err != nil {
-			return err
+		// Reject absolute paths, ".." components and (on Windows) volume
+		// names and reserved device names before the name touches the
+		// file system.
+		if !filepath.IsLocal(hdr.Name) {
+			return fmt.Errorf("archive entry %q points outside the offline directory", hdr.Name)
 		}
+		target := filepath.Join(dest, filepath.FromSlash(hdr.Name))
+
 		switch hdr.Typeflag {
 		case tar.TypeDir:
 			if err := os.MkdirAll(target, 0o755); err != nil {
 				return err
 			}
 		case tar.TypeReg:
+			// Cap the unpacked size so a small archive cannot expand to
+			// fill the disk (a decompression bomb).
+			total += hdr.Size
+			if hdr.Size < 0 || total > maxImportBytes {
+				return fmt.Errorf("archive unpacks to more than %d GiB; refusing to import it", maxImportBytes>>30)
+			}
 			if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
 				return err
 			}
@@ -229,7 +244,7 @@ func extract(src, dest string) error {
 			if err != nil {
 				return err
 			}
-			if _, err := io.Copy(out, tr); err != nil { //nolint:gosec // size bounded by the verified archive
+			if _, err := io.CopyN(out, tr, hdr.Size); err != nil {
 				out.Close()
 				return err
 			}
@@ -240,14 +255,4 @@ func extract(src, dest string) error {
 			return fmt.Errorf("archive entry %q has unsupported type %q; only files and directories are allowed", hdr.Name, string(hdr.Typeflag))
 		}
 	}
-}
-
-// safeJoin resolves an archive entry name inside dest, rejecting anything
-// that would escape it.
-func safeJoin(dest, name string) (string, error) {
-	clean := path.Clean(strings.ReplaceAll(name, `\`, "/"))
-	if path.IsAbs(clean) || filepath.IsAbs(name) || clean == ".." || strings.HasPrefix(clean, "../") || filepath.VolumeName(name) != "" {
-		return "", fmt.Errorf("archive entry %q points outside the offline directory", name)
-	}
-	return filepath.Join(dest, filepath.FromSlash(clean)), nil
 }
