@@ -50,7 +50,7 @@ func runConfigSet(cmd *cobra.Command, args []string) error {
 	viper.Set(key, value)
 
 	if err := viper.WriteConfig(); err != nil {
-		// Config file may not exist yet â€” try creating it.
+		// Config file may not exist yet — try creating it.
 		if err := viper.SafeWriteConfig(); err != nil {
 			return fmt.Errorf("could not write config: %w", err)
 		}

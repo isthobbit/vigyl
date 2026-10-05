@@ -10,6 +10,7 @@ import (
 	"github.com/isthobbit/vigyl/internal/config"
 	"github.com/isthobbit/vigyl/internal/correlate"
 	"github.com/isthobbit/vigyl/internal/installer"
+	"github.com/isthobbit/vigyl/internal/offline"
 	"github.com/isthobbit/vigyl/internal/recommend"
 	"github.com/isthobbit/vigyl/internal/scan/deps/osv"
 	"github.com/isthobbit/vigyl/internal/scan/deps/trivy"
@@ -22,8 +23,9 @@ import (
 )
 
 var (
-	scanOutput string
-	failOn     string
+	scanOutput  string
+	failOn      string
+	offlineFlag bool
 )
 
 var scanCmd = &cobra.Command{
@@ -66,6 +68,7 @@ func init() {
 	for _, cmd := range []*cobra.Command{scanAllCmd, scanSASTCmd, scanSecretsCmd, scanDepsCmd} {
 		cmd.Flags().StringVarP(&scanOutput, "output", "o", "", "write JSON results to file")
 		cmd.Flags().StringVar(&failOn, "fail-on", "", "exit 1 at this severity or above (critical|high|medium|low|none)")
+		cmd.Flags().BoolVar(&offlineFlag, "offline", false, "scan with local data only, no network access (prepare with 'jensec offline sync')")
 	}
 }
 
@@ -84,15 +87,29 @@ func runScanAll(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	gitleaksOK, semgrepOK, trivyOK, osvOK := installer.EnsureAll(noColor)
-
 	cfg := loadConfig()
+	setup, err := resolveSetup(cfg)
+	if err != nil {
+		return err
+	}
+
+	var gitleaksOK, semgrepOK, trivyOK, osvOK bool
+	if setup.offline {
+		gitleaksOK, semgrepOK, trivyOK, osvOK = installer.Detect()
+	} else {
+		gitleaksOK, semgrepOK, trivyOK, osvOK = installer.EnsureAll(noColor)
+	}
+	semgrepOK = semgrepOK && setup.ready("sast")
+	trivyOK = trivyOK && setup.ready("trivy")
+	osvOK = osvOK && setup.ready("osv")
+
 	threshold := resolveFailOn(cfg)
 	startedAt := time.Now()
 
 	if !jsonOut {
 		scanners := activeScanners(gitleaksOK, semgrepOK, trivyOK, osvOK)
 		output.PrintScanHeader(path, scanners, noColor)
+		setup.printMode()
 	}
 
 	var secretsResult *secrets.Result
@@ -107,7 +124,7 @@ func runScanAll(cmd *cobra.Command, args []string) error {
 
 	var sastResult *sast.Result
 	if semgrepOK {
-		sastResult, err = sast.Run(path, verbose, cfg.Scan.Timeout, cfg.Scan.ExcludePaths)
+		sastResult, err = sast.Run(path, verbose, cfg.Scan.Timeout, cfg.Scan.ExcludePaths, setup.sast)
 		if err != nil {
 			printScannerError("sast", err)
 		} else if !jsonOut {
@@ -117,7 +134,7 @@ func runScanAll(cmd *cobra.Command, args []string) error {
 
 	var trivyResult *trivy.Result
 	if trivyOK {
-		trivyResult, err = trivy.Run(path, verbose, cfg.Scan.Timeout, cfg.Scan.ExcludePaths)
+		trivyResult, err = trivy.Run(path, verbose, cfg.Scan.Timeout, cfg.Scan.ExcludePaths, setup.trivy)
 		if err != nil {
 			printScannerError("trivy", err)
 		}
@@ -125,7 +142,7 @@ func runScanAll(cmd *cobra.Command, args []string) error {
 
 	var osvResult *osv.Result
 	if osvOK {
-		osvResult, err = osv.Run(path, verbose, cfg.Scan.Timeout, cfg.Scan.ExcludePaths)
+		osvResult, err = osv.Run(path, verbose, cfg.Scan.Timeout, cfg.Scan.ExcludePaths, setup.osv)
 		if err != nil {
 			printScannerError("osv", err)
 		}
@@ -156,23 +173,29 @@ func runScanSAST(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if !installer.IsInstalled(installer.Semgrep) {
-		ok, _ := installer.Prompt(installer.Semgrep, noColor)
-		if !ok {
-			fmt.Fprintln(os.Stderr, "semgrep is required for SAST scanning. Exiting.")
-			os.Exit(2)
-		}
+	cfg := loadConfig()
+	setup, err := resolveSetup(cfg)
+	if err != nil {
+		return err
 	}
 
-	cfg := loadConfig()
+	if !requireTool(installer.Semgrep, setup.offline) {
+		fmt.Fprintln(os.Stderr, "semgrep is required for SAST scanning. Exiting.")
+		os.Exit(2)
+	}
+	if !setup.ready("sast") {
+		os.Exit(2)
+	}
+
 	threshold := resolveFailOn(cfg)
 	startedAt := time.Now()
 
 	if !jsonOut {
 		output.PrintScanHeader(path, []string{"sast"}, noColor)
+		setup.printMode()
 	}
 
-	result, err := sast.Run(path, verbose, cfg.Scan.Timeout, cfg.Scan.ExcludePaths)
+	result, err := sast.Run(path, verbose, cfg.Scan.Timeout, cfg.Scan.ExcludePaths, setup.sast)
 	if err != nil {
 		printScannerError("sast", err)
 		os.Exit(2)
@@ -201,20 +224,23 @@ func runScanSecrets(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if !installer.IsInstalled(installer.Gitleaks) {
-		ok, _ := installer.Prompt(installer.Gitleaks, noColor)
-		if !ok {
-			fmt.Fprintln(os.Stderr, "gitleaks is required for secrets scanning. Exiting.")
-			os.Exit(2)
-		}
+	cfg := loadConfig()
+	setup, err := resolveSetup(cfg)
+	if err != nil {
+		return err
 	}
 
-	cfg := loadConfig()
+	if !requireTool(installer.Gitleaks, setup.offline) {
+		fmt.Fprintln(os.Stderr, "gitleaks is required for secrets scanning. Exiting.")
+		os.Exit(2)
+	}
+
 	threshold := resolveFailOn(cfg)
 	startedAt := time.Now()
 
 	if !jsonOut {
 		output.PrintScanHeader(path, []string{"secrets"}, noColor)
+		setup.printMode()
 	}
 
 	result, err := secrets.Run(path, verbose, cfg.Scan.Timeout, cfg.Scan.ExcludePaths)
@@ -246,33 +272,30 @@ func runScanDeps(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	trivyOK := installer.IsInstalled(installer.Trivy)
-	osvOK := installer.IsInstalled(installer.OSVScanner)
+	cfg := loadConfig()
+	setup, err := resolveSetup(cfg)
+	if err != nil {
+		return err
+	}
 
-	if !trivyOK {
-		ok, _ := installer.Prompt(installer.Trivy, noColor)
-		trivyOK = ok
-	}
-	if !osvOK {
-		ok, _ := installer.Prompt(installer.OSVScanner, noColor)
-		osvOK = ok
-	}
+	trivyOK := requireTool(installer.Trivy, setup.offline) && setup.ready("trivy")
+	osvOK := requireTool(installer.OSVScanner, setup.offline) && setup.ready("osv")
 
 	if !trivyOK && !osvOK {
 		fmt.Fprintln(os.Stderr, "At least one of trivy or osv-scanner is required. Exiting.")
 		os.Exit(2)
 	}
 
-	cfg := loadConfig()
 	startedAt := time.Now()
 
 	if !jsonOut {
 		output.PrintScanHeader(path, []string{"trivy", "osv"}, noColor)
+		setup.printMode()
 	}
 
 	var trivyResult *trivy.Result
 	if trivyOK {
-		trivyResult, err = trivy.Run(path, verbose, cfg.Scan.Timeout, cfg.Scan.ExcludePaths)
+		trivyResult, err = trivy.Run(path, verbose, cfg.Scan.Timeout, cfg.Scan.ExcludePaths, setup.trivy)
 		if err != nil {
 			printScannerError("trivy", err)
 		}
@@ -280,7 +303,7 @@ func runScanDeps(cmd *cobra.Command, args []string) error {
 
 	var osvResult *osv.Result
 	if osvOK {
-		osvResult, err = osv.Run(path, verbose, cfg.Scan.Timeout, cfg.Scan.ExcludePaths)
+		osvResult, err = osv.Run(path, verbose, cfg.Scan.Timeout, cfg.Scan.ExcludePaths, setup.osv)
 		if err != nil {
 			printScannerError("osv", err)
 		}
@@ -299,6 +322,101 @@ func runScanDeps(cmd *cobra.Command, args []string) error {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+// scanSetup holds the per-scanner options for one run, derived from config
+// and the --offline flag.
+type scanSetup struct {
+	offline bool
+	paths   offline.Paths
+	sast    sast.Options
+	trivy   trivy.Options
+	osv     osv.Options
+	// missing records scanners whose offline data has not been synced.
+	missing map[string]error
+}
+
+// resolveSetup builds scanner options. In offline mode it points each scanner
+// at the synced data and records any scanner whose data is missing, so that
+// scanner is skipped with a clear message instead of silently going online.
+func resolveSetup(cfg *config.Config) (*scanSetup, error) {
+	s := &scanSetup{
+		offline: offlineFlag || cfg.Scan.Offline,
+		sast:    sast.Options{Rules: cfg.Scan.SemgrepRules},
+		missing: map[string]error{},
+	}
+	if !s.offline {
+		return s, nil
+	}
+
+	paths, err := offline.Resolve(cfg.Storage.OfflineDir)
+	if err != nil {
+		return nil, err
+	}
+	s.paths = paths
+
+	s.sast.Offline = true
+	if s.sast.Rules == "" || s.sast.Rules == sast.DefaultRuleset {
+		// Swap the registry default for the synced rule packs. A custom
+		// local ruleset is used as-is.
+		if err := paths.SemgrepReady(); err != nil {
+			s.missing["sast"] = err
+		}
+		s.sast.Rules = paths.SemgrepRules()
+	}
+
+	s.trivy = trivy.Options{Offline: true, CacheDir: paths.TrivyCache()}
+	if err := paths.TrivyReady(); err != nil {
+		s.missing["trivy"] = err
+	}
+
+	s.osv = osv.Options{Offline: true, DBDir: paths.OSVCache()}
+	if err := paths.OSVReady(); err != nil {
+		s.missing["osv"] = err
+	}
+	return s, nil
+}
+
+// ready reports whether a scanner can run, printing why when it cannot.
+func (s *scanSetup) ready(scanner string) bool {
+	if err := s.missing[scanner]; err != nil {
+		printScannerError(scanner, err)
+		return false
+	}
+	return true
+}
+
+// printMode tells the user when a scan is running offline, and warns when the
+// data it is using is stale.
+func (s *scanSetup) printMode() {
+	if !s.offline {
+		return
+	}
+	fmt.Fprintf(os.Stderr, "Offline mode: no network access; using local data in %s\n", s.paths.Root)
+	rows, err := s.paths.Status(time.Now())
+	if err != nil {
+		return
+	}
+	for _, r := range rows {
+		if r.Stale {
+			fmt.Fprintf(os.Stderr, "WARNING: offline %s data is over %d days old and may miss recent vulnerabilities — run 'jensec offline sync'\n", r.Source, int(offline.StaleAfter.Hours()/24))
+		}
+	}
+}
+
+// requireTool reports whether a scanner binary is available. Online, a missing
+// tool triggers the install prompt; offline, it never does, because installing
+// needs the network.
+func requireTool(t installer.Tool, offlineMode bool) bool {
+	if installer.IsInstalled(t) {
+		return true
+	}
+	if offlineMode {
+		fmt.Fprintf(os.Stderr, "WARNING: %s is not installed (offline mode does not install tools)\n", t)
+		return false
+	}
+	ok, _ := installer.Prompt(t, noColor)
+	return ok
+}
 
 func loadConfig() *config.Config {
 	cfg, err := config.Load(cfgFile)

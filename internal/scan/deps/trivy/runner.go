@@ -15,6 +15,14 @@ import (
 // ErrTrivyNotFound is returned when the trivy binary is not in PATH.
 var ErrTrivyNotFound = errors.New("trivy not found — install it: https://aquasecurity.github.io/trivy/latest/getting-started/installation/")
 
+// Options controls whether trivy may touch the network.
+type Options struct {
+	// Offline uses the DB already in CacheDir and makes no network requests.
+	Offline bool
+	// CacheDir is passed to --cache-dir when set.
+	CacheDir string
+}
+
 // defaultTimeout is used when the caller passes timeout=0.
 const defaultTimeout = 10 * time.Minute
 
@@ -24,7 +32,7 @@ const defaultTimeout = 10 * time.Minute
 // We distinguish between the two by checking whether stdout contains
 // valid JSON — a real error produces no JSON output.
 // Pass timeout=0 to use the built-in 10-minute default.
-func Run(scanPath string, verbose bool, timeout time.Duration, excludePaths []string) (*Result, error) {
+func Run(scanPath string, verbose bool, timeout time.Duration, excludePaths []string, opts Options) (*Result, error) {
 	if timeout <= 0 {
 		timeout = defaultTimeout
 	}
@@ -42,26 +50,11 @@ func Run(scanPath string, verbose bool, timeout time.Duration, excludePaths []st
 	}
 
 	// 3. Build the trivy command.
-	//    fs         → filesystem scan mode (dependency manifests)
-	//    --format json → machine-readable output we can parse
-	//    --scanners vuln → vulnerability scanning only (no secrets, no misconfig)
-	//    --quiet    → suppress progress bars
-	args := []string{
-		"fs",
-		"--format", "json",
-		"--scanners", "vuln",
-		"--quiet",
-		absPath,
+	supported := func(string) bool { return false }
+	if opts.Offline {
+		supported = helpFlagProbe(trivyPath)
 	}
-
-	for _, p := range excludePaths {
-		args = append(args, "--skip-dirs", p)
-	}
-
-	if verbose {
-		args = filterOut(args, "--quiet")
-		args = append(args, "--debug")
-	}
+	args := buildArgs(absPath, verbose, excludePaths, opts, supported)
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -95,6 +88,68 @@ func Run(scanPath string, verbose bool, timeout time.Duration, excludePaths []st
 		ScanPath:       absPath,
 		TrivyAvailable: true,
 	}, nil
+}
+
+// buildArgs assembles the trivy command line.
+//
+//	fs                → filesystem scan mode (dependency manifests)
+//	--format json     → machine-readable output we can parse
+//	--scanners vuln   → vulnerability scanning only (no secrets, no misconfig)
+//	--quiet           → suppress progress bars
+//
+// Offline adds the flags that stop every network call trivy would otherwise
+// make: DB and Java DB updates, dependency-identification API requests,
+// version-update notices and telemetry. The last two are newer flags, so they
+// are only passed when supported reports that this trivy build knows them.
+func buildArgs(absPath string, verbose bool, excludePaths []string, opts Options, supported func(flag string) bool) []string {
+	args := []string{
+		"fs",
+		"--format", "json",
+		"--scanners", "vuln",
+		"--quiet",
+	}
+	if opts.CacheDir != "" {
+		args = append(args, "--cache-dir", opts.CacheDir)
+	}
+	if opts.Offline {
+		args = append(args, "--skip-db-update", "--skip-java-db-update", "--offline-scan")
+		for _, f := range []string{"--skip-version-check", "--disable-telemetry"} {
+			if supported(f) {
+				args = append(args, f)
+			}
+		}
+	}
+	args = append(args, absPath)
+
+	for _, p := range excludePaths {
+		args = append(args, "--skip-dirs", p)
+	}
+
+	if verbose {
+		args = filterOut(args, "--quiet")
+		args = append(args, "--debug")
+	}
+	return args
+}
+
+// helpFlagProbe returns a function reporting whether `trivy fs --help`
+// mentions a flag. The help text is read once, on first use.
+func helpFlagProbe(trivyPath string) func(string) bool {
+	var help []byte
+	loaded := false
+	return func(flag string) bool {
+		if !loaded {
+			help, _ = exec.Command(trivyPath, "fs", "--help").CombinedOutput() //nolint // nosemgrep: go.lang.security.audit.dangerous-exec-command.dangerous-exec-command
+			loaded = true
+		}
+		return bytes.Contains(help, []byte(flag))
+	}
+}
+
+// BuildArgsForTest exposes buildArgs for unit testing. Do not call from
+// production code.
+func BuildArgsForTest(absPath string, verbose bool, excludePaths []string, opts Options, supported func(string) bool) []string {
+	return buildArgs(absPath, verbose, excludePaths, opts, supported)
 }
 
 // parseOutput unmarshals the trivy JSON report and converts it to our Finding type.

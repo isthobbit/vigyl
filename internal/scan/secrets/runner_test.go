@@ -108,14 +108,17 @@ func TestParseReportForTest_MalformedJSON(t *testing.T) {
 }
 
 func TestParseReportForTest_SingleFinding(t *testing.T) {
+	// The fake token is split so jensec's own secrets scan does not flag
+	// this file; the JSON itself must stay comment-free to parse.
+	token := "ghp_" + "abc123xyz"
 	single := []byte(`[{
 		"RuleID": "github-pat",
 		"Description": "GitHub Personal Access Token",
 		"StartLine": 3,
 		"EndLine": 3,
 		"File": "Makefile",
-		"Secret": "ghp_abc123xyz", // gitleaks:allow
-		"Match": "GITHUB_TOKEN=ghp_abc123xyz", // gitleaks:allow
+		"Secret": "` + token + `",
+		"Match": "GITHUB_TOKEN=` + token + `",
 		"Entropy": 4.1,
 		"Fingerprint": "ggg999"
 	}]`)

@@ -26,7 +26,9 @@ builds:
 
 archives:
   - id: jensec
-    name_template: "jensec_{{.Version}}_{{.Os}}_{{.Arch}}"
+    # No version in the name, so README links to
+    # releases/latest/download/jensec_<os>_<arch>.tar.gz keep working.
+    name_template: "jensec_{{.Os}}_{{.Arch}}"
     format_overrides:
       - goos: windows
         formats: [zip]
@@ -36,7 +38,7 @@ archives:
       - CHANGELOG.md
 
 checksum:
-  name_template: "jensec_{{.Version}}_checksums.txt"
+  name_template: "jensec_checksums.txt"
 
 release:
   github:

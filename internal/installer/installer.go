@@ -118,6 +118,13 @@ func Prompt(t Tool, noColor bool) (installed bool, err error) {
 	return true, nil
 }
 
+// Detect reports which of the four scanners are on PATH without prompting or
+// installing anything. Offline scans use it so jensec never reaches for the
+// network to fetch a missing tool.
+func Detect() (gitleaksOK, semgrepOK, trivyOK, osvOK bool) {
+	return IsInstalled(Gitleaks), IsInstalled(Semgrep), IsInstalled(Trivy), IsInstalled(OSVScanner)
+}
+
 // EnsureAll checks all four scanners. For each missing tool it calls Prompt.
 // It returns four booleans: whether gitleaks, semgrep, trivy, and osv-scanner
 // are available after the prompts (either pre-existing or freshly installed).
@@ -323,4 +330,30 @@ func color(noColor bool, code, text string) string {
 		return text
 	}
 	return code + text + "\033[0m"
+}
+
+// ManualURL returns the install documentation link for a tool.
+func ManualURL(t Tool) string {
+	return toolMeta(t).ManualURL
+}
+
+// InstallHint returns the one-line command that installs a tool on goos, the
+// same one jensec's install prompt would run, or "" when the install is
+// distro-specific and only the manual URL applies.
+func InstallHint(t Tool, goos string) string {
+	if t == Semgrep {
+		return "pip install semgrep"
+	}
+	switch goos {
+	case "darwin":
+		return "brew install " + string(t)
+	case "windows":
+		ids := map[Tool]string{
+			Gitleaks:   "Gitleaks.Gitleaks",
+			Trivy:      "AquaSecurity.Trivy",
+			OSVScanner: "Google.OSVScanner",
+		}
+		return "winget install " + ids[t]
+	}
+	return ""
 }

@@ -2,6 +2,7 @@ package output
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -128,9 +129,12 @@ func wordWrap(text string, maxWidth int, indent string) string {
 
 // PrintScanHeader prints the scan banner.
 func PrintScanHeader(path string, scanners []string, noColor bool) {
-	fmt.Printf("%s\n", colorize(noColor, bold, "╭─────────────────────────────────────────╮"))
-	fmt.Printf("%s\n", colorize(noColor, bold, "│  jensec · by vigyl                      │"))
-	fmt.Printf("%s\n", colorize(noColor, bold, "╰─────────────────────────────────────────╯"))
+	if IsTerminal(os.Stdout) {
+		PrintBanner(os.Stdout, noColor)
+	} else {
+		// Logs and pipes get one line instead of the mascot.
+		fmt.Println(colorize(noColor, bold, "jensec · by vigyl"))
+	}
 	fmt.Printf("\n   Path:     %s\n", path)
 	fmt.Printf("   Scanners: %s\n\n", strings.Join(scanners, ", "))
 }

@@ -12,7 +12,7 @@ import (
 // Load reads configuration from disk and environment variables,
 // merges it with defaults, validates it, and returns the result.
 //
-// Priority order (highest â†’ lowest):
+// Priority order (highest → lowest):
 //  1. Environment variables (vigyl_*)
 //  2. Config file (~/.vigyl/config.yaml or --config flag)
 //  3. Built-in defaults
@@ -36,7 +36,7 @@ func Load(cfgFile string) (*Config, error) {
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	v.AutomaticEnv()
 
-	// A missing config file is fine â€” we fall back to defaults.
+	// A missing config file is fine — we fall back to defaults.
 	if err := v.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
 			return nil, fmt.Errorf("error reading config file: %w", err)
@@ -86,7 +86,7 @@ func Write(key, value string) error {
 func validate(cfg *Config) error {
 	if !ValidFailOnValues[strings.ToLower(cfg.Scan.FailOn)] {
 		return fmt.Errorf(
-			"invalid scan.fail_on value %q â€” must be one of: critical, high, medium, low, none",
+			"invalid scan.fail_on value %q — must be one of: critical, high, medium, low, none",
 			cfg.Scan.FailOn,
 		)
 	}
@@ -103,5 +103,37 @@ func applyDefaults(v *viper.Viper) {
 	v.SetDefault("scan.timeout", d.Scan.Timeout.String())
 	v.SetDefault("scan.exclude_paths", d.Scan.ExcludePaths)
 	v.SetDefault("scan.semgrep_rules", d.Scan.SemgrepRules)
+	v.SetDefault("scan.offline", d.Scan.Offline)
+	v.SetDefault("storage.offline_dir", d.Storage.OfflineDir)
 	v.SetDefault("storage.max_history", d.Storage.MaxHistory)
+	// viper only maps VIGYL_* environment variables onto keys it already
+	// knows, so every key needs a default, even an empty one.
+	v.SetDefault("storage.db_path", d.Storage.DBPath)
+	v.SetDefault("auth.license_key", d.Auth.LicenseKey)
+}
+
+// Locate returns the config file Load would read, or "" when none exists.
+// It mirrors Load's search: an explicit path, else config.<ext> in ~/.vigyl
+// and then the current directory, for every format viper supports.
+func Locate(cfgFile string) string {
+	if cfgFile != "" {
+		return cfgFile
+	}
+	var dirs []string
+	if home, err := os.UserHomeDir(); err == nil {
+		dirs = append(dirs, filepath.Join(home, ".vigyl"))
+	}
+	dirs = append(dirs, ".")
+	for _, dir := range dirs {
+		for _, ext := range viper.SupportedExts {
+			p := filepath.Join(dir, "config."+ext)
+			if info, err := os.Stat(p); err == nil && !info.IsDir() {
+				if abs, err := filepath.Abs(p); err == nil {
+					return abs
+				}
+				return p
+			}
+		}
+	}
+	return ""
 }
