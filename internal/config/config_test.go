@@ -156,3 +156,15 @@ func TestWrite_CreatesFileAndSetsKey(t *testing.T) {
 		t.Error("config file is empty after Write()")
 	}
 }
+
+func TestLoad_StorageDBPathFromEnv(t *testing.T) {
+	isolateHome(t)
+	t.Setenv("VIGYL_STORAGE_DB_PATH", "/tmp/custom.db")
+	cfg, err := config.Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Storage.DBPath != "/tmp/custom.db" {
+		t.Errorf("VIGYL_STORAGE_DB_PATH ignored: got %q", cfg.Storage.DBPath)
+	}
+}

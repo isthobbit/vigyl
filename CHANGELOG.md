@@ -7,6 +7,15 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [Unreleased]
+
+### Removed
+- The one-time move of scan history and config from the old data folder,
+  added in v0.3.0. Every release before v0.3.0 had no users besides the
+  maintainer, so jensec now only uses `~/.vigyl`.
+
+---
+
 ## [v0.3.0] — 2026-10-05
 
 ### Added
