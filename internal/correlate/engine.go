@@ -393,6 +393,13 @@ func (a *analysis) score() *Result {
 		why = append(why, describeUsage(p))
 		why = append(why, a.why[entry]...)
 		r := a.risk("package", key, rank(p.worst.Severity), entry, why)
+		r.pkg, r.Versions = p.name, []string{p.version}
+		switch {
+		case !p.usage.Known:
+			r.reach = 1
+		case len(p.usage.Files) == 0:
+			r.reach = 2
+		}
 		a.findingCount[entry] = p.vulnCount()
 		res.Risks = append(res.Risks, r)
 		scores = append(scores, r.Score)
@@ -402,10 +409,56 @@ func (a *analysis) score() *Result {
 		if res.Risks[i].Score != res.Risks[j].Score {
 			return res.Risks[i].Score > res.Risks[j].Score
 		}
+		// At equal scores, what the code is known to use comes first. This
+		// only orders the list; unimported packages are not scored lower.
+		if res.Risks[i].reach != res.Risks[j].reach {
+			return res.Risks[i].reach < res.Risks[j].reach
+		}
 		return res.Risks[i].Name < res.Risks[j].Name
 	})
 	res.Overall = calculateOverallScore(scores)
 	return res
+}
+
+// Top returns the n highest risks that scored above zero, with every
+// vulnerable version of a package shown as one entry, ranked by its
+// highest-scoring version. The result's Risks are left as they are.
+func (r *Result) Top(n int) []Risk {
+	if r == nil {
+		return []Risk{}
+	}
+	out := []Risk{}
+	group := map[string]int{} // package name → index in out
+	others := map[string][]string{}
+	for _, risk := range r.Risks {
+		if risk.Score <= 0 {
+			continue
+		}
+		if risk.Kind == "package" && risk.pkg != "" {
+			if i, ok := group[risk.pkg]; ok {
+				out[i].Versions = append(out[i].Versions, risk.Versions...)
+				others[risk.pkg] = append(others[risk.pkg], fmt.Sprintf("%s (score %.1f)", risk.Versions[0], risk.Score))
+				continue
+			}
+			group[risk.pkg] = len(out)
+		}
+		risk.Why = append([]string(nil), risk.Why...)
+		risk.Versions = append([]string(nil), risk.Versions...)
+		out = append(out, risk)
+	}
+	for name, i := range group {
+		if len(out[i].Versions) < 2 {
+			continue
+		}
+		// The explanation is the top version's; say so and list the rest.
+		out[i].Name = name + "@" + strings.Join(out[i].Versions, ", ")
+		out[i].Why[0] = out[i].Versions[0] + ": " + out[i].Why[0]
+		out[i].Why = append(out[i].Why, "also vulnerable: "+strings.Join(others[name], ", "))
+	}
+	if len(out) > n {
+		out = out[:n]
+	}
+	return out
 }
 
 func (a *analysis) risk(kind, name string, base float64, entry string, why []string) Risk {

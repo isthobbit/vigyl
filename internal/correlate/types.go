@@ -99,6 +99,14 @@ type Risk struct {
 	Band  store.RiskBand `json:"band"`
 	// Why lists, in plain language, what contributed to the score.
 	Why []string `json:"why"`
+	// Versions lists, for a package, every vulnerable version installed.
+	// It has more than one entry only in Top's grouped list.
+	Versions []string `json:"versions,omitempty"`
+
+	pkg string // package name, without the version
+	// reach orders equal scores: 0 for files and imported packages, 1 when
+	// imports could not be read, 2 for packages no file imports.
+	reach int
 }
 
 // correlation is an internal representation before it is persisted.

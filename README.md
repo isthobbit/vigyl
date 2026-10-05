@@ -242,16 +242,21 @@ Top risks  overall 6.5/10 CRITICAL
 ```
 
 The same list is in `--json` output as `top_risks`, with each reason in `why`.
+A package installed at several versions is listed once, ranked by its
+highest-scoring version, with the others under "also vulnerable".
 
 Recommendations — prioritised list of actionable fixes, ordered by effort:
 ```
-1. CRITICAL  [SHORT TERM]  Multiple vulnerabilities in python-jose@3.3.0
-   Why: python-jose@3.3.0 has multiple known CVEs...
-   Do:  Upgrade python-jose from 3.3.0 to 3.4.0.
+1. CRITICAL  [IMMEDIATE]  Secret in a file that imports vulnerable mongodb: artifacts/db-reset.js
+   Why: artifacts/db-reset.js contains a detected-bcrypt-hash secret on line 19
+        and imports mongodb 2.2.36, which has GHSA-mh5c-679w-hh4r (HIGH)...
+   Do:  Rotate the credential and move it out of the source code, then upgrade
+        mongodb from 2.2.36 to 3.1.13.
 
-2. HIGH  [LONG TERM]  Multiple vulnerabilities concentrated in .../docker-compose.prod.yml
-   Why: Multiple vulnerabilities suggest a broader security review is needed.
-   Do:  Review docker-compose.prod.yml holistically.
+2. CRITICAL  [SHORT TERM]  Upgrade minimist (4 vulnerable versions installed)
+   Why: minimist is installed at versions 0.0.8, 0.0.10, 1.2.0, 1.2.5, with 2
+        known vulnerabilities between them; the worst is CVE-2021-44906 (CRITICAL).
+   Do:  Upgrade 0.0.8 to 1.2.6; 0.0.10 to 1.2.6; 1.2.0 to 1.2.6; 1.2.5 to 1.2.6...
 ```
 
 Trend analysis — compares against previous scans of the same path:
@@ -445,12 +450,18 @@ find which files import each vulnerable package:
   directly is labelled "no direct import found; it may still be used by
   another dependency", but its score is not lowered: another dependency may
   still use it. For ecosystems jensec cannot read imports for (Java, Ruby,
-  PHP, Rust), it says "import use unknown" rather than guessing.
+  PHP, Rust), it says "import use unknown" rather than guessing. Where
+  two scores are equal, packages your code imports are listed first; the
+  scores themselves are unchanged.
 - **Count one vulnerability twice.** Trivy and OSV-Scanner often name the same
   vulnerability differently (a CVE ID versus a GHSA or PYSEC ID). jensec
   matches them through OSV's aliases, and when it counts a package's
   vulnerabilities, it uses the larger of the two scanners' counts rather than
   adding them.
+- **Count one secret twice.** Semgrep's secret rules (`generic.secrets.*`)
+  find the same kind of thing Gitleaks does. jensec reports them as secrets,
+  not code vulnerabilities, and drops one that Gitleaks already found on the
+  same line, so a secret is never linked to itself.
 
 ---
 

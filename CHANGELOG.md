@@ -21,6 +21,7 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `--json` dependency findings have `found_by` and `manifest`; a CVE reported by
   both Trivy and OSV-Scanner appears once.
 - README section "How scoring works".
+- `top_risks` entries for packages have `versions`.
 
 ### Changed
 - Unimported vulnerable packages are labelled, never downgraded; unsupported
@@ -30,6 +31,19 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Removed `secret_and_vuln_in_same_file`, which duplicated
   `secret_in_vulnerable_file` and counted the same fact twice.
 - Database schema v4 records each dependency finding's manifest.
+- Semgrep's secret rules (`generic.secrets.*`) are reported as secrets, not
+  code vulnerabilities, and one Gitleaks already found on the same line is
+  dropped. Previously a private key could be reported as a secret in a file
+  with a code vulnerability: itself.
+- Top risks lists each package once with all its vulnerable versions, and at
+  equal scores puts files and imported packages first. Scores are unchanged.
+- One recommendation per vulnerable package, replacing the separate "CVE
+  confirmed", "confirmed by multiple scanners" and "multiple
+  vulnerabilities" ones for each version. It names, for each installed
+  version, the lowest release that fixes all of its known vulnerabilities.
+- File paths in `--json`, scan output and recommendations are relative to the
+  scanned folder. Scan history still stores full paths, so `jensec ignore`
+  rules keep matching.
 
 ### Fixed
 - OSV-Scanner severities: CVSS vectors were scored as LOW, so OSV reported no

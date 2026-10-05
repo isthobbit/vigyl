@@ -1,8 +1,10 @@
 package recommend
 
 import (
+	"cmp"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/isthobbit/vigyl/internal/store"
@@ -26,6 +28,9 @@ func Generate(
 	}
 
 	var recs []Recommendation
+	// Package rules are gathered per package name, so a package installed at
+	// several versions, or flagged by several rules, gets one recommendation.
+	flagged := map[string]*packageFlags{}
 
 	for _, c := range correlations {
 		var rec *Recommendation
@@ -35,20 +40,42 @@ func Generate(
 			rec = secretInVulnerableFile(c, codeByID)
 		case "secret_in_file_using_vulnerable_package":
 			rec = secretUsingVulnerablePackage(c, codeByID, depByID)
-		case "cve_confirmed_by_multiple_scanners":
-			rec = cveConfirmedByMultipleScanners(c, depByID)
-		case "multiple_cves_in_same_package":
-			rec = multipleCVEsInSamePackage(c, depByID)
 		case "multiple_vulns_in_same_file":
 			rec = multipleVulnsInSameFile(c, codeByID)
 		case "vuln_code_in_vulnerable_file":
 			rec = vulnCodeInVulnerableFile(c, codeByID, depByID)
-		case "package_confirmed_by_multiple_scanners":
-			rec = packageConfirmedByMultipleScanners(c, depByID)
+		case "cve_confirmed_by_multiple_scanners", "package_confirmed_by_multiple_scanners", "multiple_cves_in_same_package":
+			if c.DepFindingID == nil {
+				continue
+			}
+			dep, ok := depByID[*c.DepFindingID]
+			if !ok {
+				continue
+			}
+			f := flagged[dep.Package]
+			if f == nil {
+				f = &packageFlags{}
+				flagged[dep.Package] = f
+			}
+			if c.Reason != "multiple_cves_in_same_package" {
+				f.confirmed = true
+			}
 		}
 
 		if rec != nil {
 			rec.Rule = c.Reason
+			recs = append(recs, *rec)
+		}
+	}
+
+	for _, name := range sortedNames(flagged) {
+		var findings []store.DepFindingRecord
+		for _, f := range depFindings {
+			if f.Package == name {
+				findings = append(findings, f)
+			}
+		}
+		if rec := vulnerablePackage(name, findings, flagged[name].confirmed); rec != nil {
 			recs = append(recs, *rec)
 		}
 	}
@@ -146,71 +173,6 @@ func secretUsingVulnerablePackage(c store.CorrelationRecord, codeByID map[int64]
 	}
 }
 
-func cveConfirmedByMultipleScanners(c store.CorrelationRecord, depByID map[int64]store.DepFindingRecord) *Recommendation {
-	if c.DepFindingID == nil {
-		return nil
-	}
-	dep, ok := depByID[*c.DepFindingID]
-	if !ok {
-		return nil
-	}
-
-	fixMsg := "No fix currently available — consider replacing this dependency."
-	if dep.FixedVersion != "" {
-		fixMsg = fmt.Sprintf("Upgrade %s from %s to %s.", dep.Package, dep.Version, dep.FixedVersion)
-	}
-
-	refs := []int64{dep.ID}
-	if c.TargetFindingID != nil {
-		refs = append(refs, *c.TargetFindingID)
-	}
-
-	return &Recommendation{
-		Priority: dep.Severity,
-		Title:    fmt.Sprintf("CVE %s confirmed in %s", dep.CVEID, dep.Package),
-		Context: fmt.Sprintf(
-			"Both Trivy and OSV independently flagged %s in %s@%s, "+
-				"increasing confidence it is exploitable in your environment.",
-			dep.CVEID, dep.Package, dep.Version,
-		),
-		Action:      fixMsg,
-		Effort:      EffortShortTerm,
-		FindingRefs: refs,
-	}
-}
-
-func multipleCVEsInSamePackage(c store.CorrelationRecord, depByID map[int64]store.DepFindingRecord) *Recommendation {
-	if c.DepFindingID == nil {
-		return nil
-	}
-	dep, ok := depByID[*c.DepFindingID]
-	if !ok {
-		return nil
-	}
-
-	fixMsg := fmt.Sprintf("Replace %s — no fix version is available.", dep.Package)
-	if dep.FixedVersion != "" {
-		fixMsg = fmt.Sprintf("Upgrade %s to %s or replace it if no fix is available.", dep.Package, dep.FixedVersion)
-	}
-
-	refs := []int64{dep.ID}
-	if c.TargetFindingID != nil {
-		refs = append(refs, *c.TargetFindingID)
-	}
-
-	return &Recommendation{
-		Priority: dep.Severity,
-		Title:    fmt.Sprintf("Multiple vulnerabilities in %s@%s", dep.Package, dep.Version),
-		Context: fmt.Sprintf(
-			"%s@%s has multiple known CVEs. Continued use increases your attack surface.",
-			dep.Package, dep.Version,
-		),
-		Action:      fixMsg,
-		Effort:      EffortShortTerm,
-		FindingRefs: refs,
-	}
-}
-
 func multipleVulnsInSameFile(c store.CorrelationRecord, codeByID map[int64]store.CodeFindingRecord) *Recommendation {
 	if c.CodeFindingID == nil {
 		return nil
@@ -271,45 +233,172 @@ func vulnCodeInVulnerableFile(c store.CorrelationRecord, codeByID map[int64]stor
 	}
 }
 
-func packageConfirmedByMultipleScanners(c store.CorrelationRecord, depByID map[int64]store.DepFindingRecord) *Recommendation {
-	if c.DepFindingID == nil {
+// packageFlags records which package rules applied to a package name.
+type packageFlags struct {
+	// confirmed is true when Trivy and OSV-Scanner both flagged the package.
+	confirmed bool
+}
+
+// vulnerablePackage is the one recommendation for a vulnerable package,
+// covering every installed version and every package rule that applied.
+func vulnerablePackage(name string, findings []store.DepFindingRecord, confirmed bool) *Recommendation {
+	if len(findings) == 0 {
 		return nil
 	}
-	dep, ok := depByID[*c.DepFindingID]
-	if !ok {
-		return nil
+
+	worst := findings[0]
+	// upgradeTo maps each installed version to the lowest release that fixes
+	// all of its known vulnerabilities, or "" if one of them has no fix.
+	upgradeTo := map[string]string{}
+	unfixed := map[string]bool{}
+	ids := map[string]map[string]bool{} // scanner → distinct advisory IDs
+	refs := make([]int64, 0, len(findings))
+	for _, f := range findings {
+		refs = append(refs, f.ID)
+		if priorityOrder(f.Severity) > priorityOrder(worst.Severity) {
+			worst = f
+		}
+		fix := nearestFix(f.Version, f.FixedVersion)
+		if fix == "" {
+			unfixed[f.Version] = true
+		}
+		if cur, ok := upgradeTo[f.Version]; !ok || compareVersions(fix, cur) > 0 {
+			upgradeTo[f.Version] = fix
+		}
+		if ids[f.Scanner] == nil {
+			ids[f.Scanner] = map[string]bool{}
+		}
+		ids[f.Scanner][f.CVEID] = true
+	}
+	// Trivy and OSV-Scanner can name one vulnerability differently, so the
+	// larger of their counts is used rather than the sum.
+	count := 0
+	for _, set := range ids {
+		count = max(count, len(set))
+	}
+	versions := sortedNames(upgradeTo)
+	sort.SliceStable(versions, func(i, j int) bool { return compareVersions(versions[i], versions[j]) < 0 })
+	for v := range unfixed {
+		upgradeTo[v] = ""
 	}
 
-	fixMsg := fmt.Sprintf("Review and update %s — no fix version is available.", dep.Package)
-	if dep.FixedVersion != "" {
-		fixMsg = fmt.Sprintf("Upgrade %s from %s to %s.", dep.Package, dep.Version, dep.FixedVersion)
+	advisory := worst.CVEID
+	if advisory == "" {
+		advisory = "an advisory"
+	}
+	confirmedNote := ""
+	if confirmed {
+		confirmedNote = " Both Trivy and OSV-Scanner report it."
+	}
+	vulns := fmt.Sprintf("%d known vulnerabilit%s", count, map[bool]string{true: "y", false: "ies"}[count == 1])
+
+	if len(versions) == 1 {
+		action := fmt.Sprintf("Not every vulnerability has a fixed release; consider replacing %s.", name)
+		if fix := upgradeTo[worst.Version]; fix != "" {
+			action = fmt.Sprintf("Upgrade %s from %s to %s.", name, worst.Version, fix)
+		}
+		return &Recommendation{
+			Priority:    worst.Severity,
+			Title:       fmt.Sprintf("Upgrade %s %s", name, worst.Version),
+			Context:     fmt.Sprintf("%s %s has %s; the worst is %s (%s).%s", name, worst.Version, vulns, advisory, worst.Severity, confirmedNote),
+			Action:      action,
+			Effort:      EffortShortTerm,
+			FindingRefs: refs,
+			Rule:        "vulnerable_package",
+		}
 	}
 
-	refs := []int64{dep.ID}
-	if c.TargetFindingID != nil {
-		refs = append(refs, *c.TargetFindingID)
+	var steps []string
+	for _, v := range versions {
+		if fix := upgradeTo[v]; fix != "" {
+			steps = append(steps, fmt.Sprintf("%s to %s", v, fix))
+		} else {
+			steps = append(steps, v+" (no fix published)")
+		}
 	}
-
 	return &Recommendation{
-		Priority: dep.Severity,
-		Title:    fmt.Sprintf("Vulnerability in %s confirmed by multiple scanners", dep.Package),
-		Context: fmt.Sprintf(
-			"%s@%s was flagged independently by both Trivy and OSV, "+
-				"increasing confidence the vulnerability is real and exploitable.",
-			dep.Package, dep.Version,
-		),
-		Action:      fixMsg,
+		Priority: worst.Severity,
+		Title:    fmt.Sprintf("Upgrade %s (%d vulnerable versions installed)", name, len(versions)),
+		Context: fmt.Sprintf("%s is installed at versions %s, with %s between them; the worst is %s (%s).%s",
+			name, strings.Join(versions, ", "), vulns, advisory, worst.Severity, confirmedNote),
+		Action: fmt.Sprintf("Upgrade %s. Copies installed by other packages are upgraded by updating "+
+			"the package that depends on them, or with an override in your package manager.", strings.Join(steps, "; ")),
 		Effort:      EffortShortTerm,
 		FindingRefs: refs,
+		Rule:        "vulnerable_package",
 	}
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-// shortPath returns the last two path components to keep titles readable.
+// nearestFix picks, from a scanner's list of fixed releases such as
+// "1.2.6, 0.2.4" (one per release line), the lowest one above the installed
+// version. It returns "" when no release is listed.
+func nearestFix(installed, fixed string) string {
+	best := ""
+	for _, c := range strings.Split(fixed, ",") {
+		c = strings.TrimSpace(c)
+		if c == "" || compareVersions(c, installed) <= 0 {
+			continue
+		}
+		if best == "" || compareVersions(c, best) < 0 {
+			best = c
+		}
+	}
+	if best == "" {
+		// Nothing parsed as newer; show the scanner's own text.
+		return strings.TrimSpace(fixed)
+	}
+	return best
+}
+
+// compareVersions compares dotted versions numerically, so 0.0.10 sorts
+// after 0.0.8. A pre-release (1.0.0-beta) sorts before its release, and ""
+// before everything.
+func compareVersions(a, b string) int {
+	if a == "" || b == "" {
+		return strings.Compare(a, b)
+	}
+	ac, apre, _ := strings.Cut(strings.TrimPrefix(a, "v"), "-")
+	bc, bpre, _ := strings.Cut(strings.TrimPrefix(b, "v"), "-")
+	ap, bp := strings.Split(ac, "."), strings.Split(bc, ".")
+	for i := 0; i < max(len(ap), len(bp)); i++ {
+		var x, y int
+		if i < len(ap) {
+			x, _ = strconv.Atoi(ap[i])
+		}
+		if i < len(bp) {
+			y, _ = strconv.Atoi(bp[i])
+		}
+		if x != y {
+			return cmp.Compare(x, y)
+		}
+	}
+	switch {
+	case apre == bpre:
+		return 0
+	case apre == "":
+		return 1
+	case bpre == "":
+		return -1
+	}
+	return strings.Compare(apre, bpre)
+}
+
+func sortedNames[V any](m map[string]V) []string {
+	names := make([]string, 0, len(m))
+	for k := range m {
+		names = append(names, k)
+	}
+	sort.Strings(names)
+	return names
+}
+
+// shortPath keeps titles readable: a path of up to three components is shown
+// whole, a longer one as its last two.
 func shortPath(path string) string {
 	parts := strings.Split(strings.ReplaceAll(path, "\\", "/"), "/")
-	if len(parts) <= 2 {
+	if len(parts) <= 3 {
 		return path
 	}
 	return "..." + "/" + strings.Join(parts[len(parts)-2:], "/")

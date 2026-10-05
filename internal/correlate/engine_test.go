@@ -233,3 +233,40 @@ func TestAliasedAdvisoriesCountOnce(t *testing.T) {
 		t.Errorf("both scanners flagged the package under different IDs: %v", reasons(a))
 	}
 }
+
+// At equal scores a package the code imports ranks above one it does not,
+// and Top shows each package once with all its vulnerable versions.
+func TestTopRanksImportedFirstAndGroupsVersions(t *testing.T) {
+	root, ix := fixture(t, map[string]string{
+		"package-lock.json": "{}",
+		"index.js":          "const _ = require('underscore')\n",
+	})
+	in := Input{Root: root, Imports: ix, DepFindings: []store.DepFindingRecord{
+		// minimist sorts first by name and has two versions; nothing imports it.
+		dep("trivy", "CRITICAL", "minimist", "0.0.8", "CVE-2021-44906", "npm", "package-lock.json"),
+		dep("trivy", "CRITICAL", "minimist", "1.2.0", "CVE-2021-44906", "npm", "package-lock.json"),
+		dep("trivy", "CRITICAL", "underscore", "1.9.1", "CVE-2021-23358", "npm", "package-lock.json"),
+	}}
+	a := analyse(in, Weights(nil))
+	if a.result.Risks[0].Name != "underscore@1.9.1" {
+		t.Fatalf("imported package should rank first at equal score, got %q", a.result.Risks[0].Name)
+	}
+	if got := riskFor(t, a, "minimist@0.0.8").Score; got != riskFor(t, a, "underscore@1.9.1").Score {
+		t.Fatalf("ranking must not change scores: minimist %.1f", got)
+	}
+
+	top := a.result.Top(10)
+	if len(top) != 2 {
+		t.Fatalf("expected underscore and one grouped minimist entry, got %+v", top)
+	}
+	m := top[1]
+	if m.Name != "minimist@0.0.8, 1.2.0" || len(m.Versions) != 2 || !hasWhy(m, "also vulnerable: 1.2.0") {
+		t.Errorf("minimist versions not grouped: %+v", m)
+	}
+	if len(a.result.Risks) != 3 || a.result.Risks[1].Name == m.Name {
+		t.Error("Top must not modify the stored per-version risks")
+	}
+	if got := a.result.Top(1); len(got) != 1 || got[0].Name != "underscore@1.9.1" {
+		t.Errorf("Top(1) = %+v", got)
+	}
+}

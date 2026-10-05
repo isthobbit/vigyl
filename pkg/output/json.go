@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/isthobbit/vigyl/internal/correlate"
+	"github.com/isthobbit/vigyl/internal/paths"
 	"github.com/isthobbit/vigyl/internal/scan/deps/osv"
 	"github.com/isthobbit/vigyl/internal/scan/deps/trivy"
 	"github.com/isthobbit/vigyl/internal/scan/sast"
@@ -83,7 +84,7 @@ func WriteJSON(w io.Writer, scanPath string, secretsResult *secrets.Result, sast
 	if risks != nil {
 		report.RiskScore = math.Round(risks.Overall*10) / 10
 		report.RiskBand = string(correlate.BandFor(risks.Overall))
-		report.TopRisks = topRisks(risks.Risks)
+		report.TopRisks = risks.Top(TopRiskCount)
 	}
 
 	enc := json.NewEncoder(w)
@@ -159,7 +160,7 @@ func secretsToJSON(r *secrets.Result) []JSONFinding {
 			Scanner:  "secrets",
 			Severity: "HIGH",
 			RuleID:   f.RuleID,
-			File:     f.File,
+			File:     paths.Rel(r.ScanPath, f.File),
 			Line:     f.StartLine,
 			Message:  f.Description,
 			Match:    redactSecret(f.Match, f.Secret),
@@ -178,7 +179,7 @@ func sastToJSON(r *sast.Result) []JSONFinding {
 			Scanner:  "sast",
 			Severity: f.Severity,
 			RuleID:   f.RuleID,
-			File:     f.Path,
+			File:     paths.Rel(r.ScanPath, f.Path),
 			Line:     f.Start.Line,
 			Message:  f.Message,
 		})
@@ -232,20 +233,6 @@ func depsToJSON(t *trivy.Result, o *osv.Result) []JSONDepFinding {
 
 func severityOrder(s string) int {
 	return map[string]int{"LOW": 1, "MEDIUM": 2, "HIGH": 3, "CRITICAL": 4}[strings.ToUpper(s)]
-}
-
-// topRisks returns the highest-scoring entries that have something to say.
-func topRisks(all []correlate.Risk) []correlate.Risk {
-	out := []correlate.Risk{}
-	for _, r := range all {
-		if len(out) == TopRiskCount {
-			break
-		}
-		if r.Score > 0 {
-			out = append(out, r)
-		}
-	}
-	return out
 }
 
 func activeScanners(s *secrets.Result, a *sast.Result, t *trivy.Result, o *osv.Result) []string {

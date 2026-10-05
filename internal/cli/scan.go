@@ -14,6 +14,7 @@ import (
 	"github.com/isthobbit/vigyl/internal/imports"
 	"github.com/isthobbit/vigyl/internal/installer"
 	"github.com/isthobbit/vigyl/internal/offline"
+	"github.com/isthobbit/vigyl/internal/paths"
 	"github.com/isthobbit/vigyl/internal/recommend"
 	"github.com/isthobbit/vigyl/internal/scan/deps/osv"
 	"github.com/isthobbit/vigyl/internal/scan/deps/trivy"
@@ -120,8 +121,6 @@ func runScanAll(cmd *cobra.Command, args []string) error {
 		secretsResult, err = secrets.Run(path, verbose, cfg.Scan.Timeout, cfg.Scan.ExcludePaths)
 		if err != nil {
 			printScannerError("secrets", err)
-		} else if !jsonOut {
-			output.PrintSecretsResult(secretsResult, noColor)
 		}
 	}
 
@@ -130,7 +129,16 @@ func runScanAll(cmd *cobra.Command, args []string) error {
 		sastResult, err = sast.Run(path, verbose, cfg.Scan.Timeout, cfg.Scan.ExcludePaths, setup.sast)
 		if err != nil {
 			printScannerError("sast", err)
-		} else if !jsonOut {
+		}
+	}
+	// Semgrep's secret rules belong with the secrets, so results are printed
+	// once both scanners have run.
+	secretsResult = moveSemgrepSecrets(secretsResult, sastResult)
+	if !jsonOut {
+		if secretsResult != nil {
+			output.PrintSecretsResult(secretsResult, noColor)
+		}
+		if sastResult != nil {
 			output.PrintSASTResult(sastResult, noColor)
 		}
 	}
@@ -562,7 +570,14 @@ func persistScan(path, scanners string, startedAt, endedAt time.Time, s *secrets
 
 	// Generate and display recommendations using only active findings.
 	correlationRecs, _ := db.CorrelationsForScan(scanID)
-	recs := recommend.Generate(correlationRecs, activeCode, activeDep)
+	// Stored paths stay absolute so ignore fingerprints are unique per
+	// project; recommendations show them relative to the scanned folder.
+	shown := make([]store.CodeFindingRecord, len(activeCode))
+	for i, f := range activeCode {
+		f.File = paths.Rel(root, f.File)
+		shown[i] = f
+	}
+	recs := recommend.Generate(correlationRecs, shown, activeDep)
 	if !jsonOut && len(recs) > 0 {
 		output.PrintRecommendations(recs, noColor)
 	}
@@ -640,6 +655,7 @@ func buildDepFindingRecords(t *trivy.Result, o *osv.Result) []store.DepFindingRe
 				Ecosystem:    f.Ecosystem,
 				FixedVersion: f.FixedVersion,
 				Description:  f.Description,
+				Manifest:     f.Manifest,
 			})
 		}
 	}
@@ -654,6 +670,7 @@ func buildDepFindingRecords(t *trivy.Result, o *osv.Result) []store.DepFindingRe
 				Ecosystem:    f.Ecosystem,
 				FixedVersion: f.FixedVersion,
 				Description:  f.Description,
+				Manifest:     f.Manifest,
 			})
 		}
 	}
