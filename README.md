@@ -577,9 +577,12 @@ Released (see [CHANGELOG.md](CHANGELOG.md) for details):
 - **v0.1** — Secrets scanning (Gitleaks), SAST (Semgrep), local scan history, CI integration
 - **v0.2** — Dependency scanning (Trivy + OSV), correlation engine, risk scoring with named bands (LOW → SEVERE), structured recommendations, trend analysis; v0.2.1 added `jensec ignore`
 - **v0.3** — Offline and air-gapped scanning (`--offline`, `jensec offline`), `jensec doctor`, scan history moved to `~/.vigyl`
+- **v0.4** — Vulnerable dependencies linked to the files that import them, "Top risks" with the reasons behind each score, one finding per vulnerability across Trivy and OSV-Scanner, scanners run in parallel
 
 Planned:
 
+- Option to fail a pipeline on dependency vulnerabilities (they do not affect the exit code today)
+- Reachability: whether a vulnerable package's affected functions are actually called
 - SARIF output for GitHub Code Scanning
 - Pre-commit hook installer
 - Docker image scanning and IaC scanning (Terraform, Kubernetes, CloudFormation)
