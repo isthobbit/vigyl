@@ -81,7 +81,7 @@ func TestDepsToJSON_MergesAcrossScanners(t *testing.T) {
 		{Package: "requests", Version: "2.19.0", CVEID: "CVE-2018-18074", Severity: "HIGH"},
 		{Package: "requests", Version: "2.19.0", CVEID: "GHSA-only-0000", Severity: "LOW"},
 	}}
-	got := depsToJSON(tr, ov)
+	got := MergeDeps(tr, ov)
 	if len(got) != 3 {
 		t.Fatalf("expected 3 distinct findings, got %d: %+v", len(got), got)
 	}

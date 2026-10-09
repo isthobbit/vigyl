@@ -16,7 +16,8 @@ var ignoreReason string
 var ignoreCmd = &cobra.Command{
 	Use:   "ignore <finding-id>",
 	Short: "Suppress a finding from future scan output",
-	Long: `Mark a finding as ignored so it no longer appears in scan output or recommendations.
+	Long: `Mark a finding as ignored so it no longer appears in scan output or recommendations,
+or counts towards --fail-on and --fail-on-deps.
 
 The finding is identified by its ID from the most recent scan. Run 'jensec report'
 to see finding IDs.

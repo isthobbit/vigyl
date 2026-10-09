@@ -362,10 +362,36 @@ Severity levels: `critical` → `high` → `medium` → `low` → `none`
 > `--fail-on critical` will *not* trigger on secrets findings. Use `--fail-on high`
 > (the default) or lower if you want the pipeline to fail when a secret is found.
 
-> Dependency vulnerabilities do not affect the exit code. `--fail-on` applies
-> to secrets and code (SAST) findings only, and `jensec scan deps` exits 0
-> whatever it finds. To fail a pipeline on CVEs, check `dependencies` in the
-> `--json` output.
+### Failing on dependency vulnerabilities
+
+`--fail-on` applies to secrets and code (SAST) findings. Dependency
+vulnerabilities have their own threshold, `--fail-on-deps`, which is `none`
+by default, so they never fail a scan unless you ask. Nearly every real
+project has some HIGH vulnerability deep in its dependencies, so a separate,
+usually stricter, threshold keeps the check usable:
+
+```bash
+# Fail on CRITICAL dependency vulnerabilities that have a fixed version
+jensec scan all --fail-on high --fail-on-deps critical --fail-on-deps-fixable
+```
+
+Each vulnerability counts once, even when Trivy and OSV-Scanner both report
+it. When the threshold is met, jensec lists what failed on stderr:
+
+```
+Failing: 1 dependency vulnerability at or above CRITICAL with a fix available.
+  CRITICAL  minimist@1.2.0  CVE-2021-44906  fix: 1.2.6
+```
+
+### Accepting a known risk
+
+`jensec ignore <finding-id>` hides a finding from scan output and
+recommendations, and it no longer counts towards `--fail-on` or
+`--fail-on-deps`. Ignoring either scanner's report of a dependency
+vulnerability ignores that vulnerability. `jensec ignore list` shows what is
+ignored and why.
+
+### JSON output
 
 Output machine-readable JSON for downstream processing:
 
@@ -381,7 +407,7 @@ jensec scan all --json --output results.json
   run: go build -o /usr/local/bin/jensec ./cmd/jensec
 
 - name: Security scan
-  run: jensec scan all --fail-on high --json --output security-report.json
+  run: jensec scan all --fail-on high --fail-on-deps critical --fail-on-deps-fixable --json --output security-report.json
 ```
 
 The repository ships with a ready-to-use workflow in `.github/workflows/jensec.yml` that runs on every push and pull request to `main`, `master`, or `develop`.
@@ -416,6 +442,8 @@ Create `~/.vigyl/config.yaml` to set persistent defaults:
 ```yaml
 scan:
   fail_on: high             # critical | high | medium | low | none
+  fail_on_deps: none        # same values, for dependency vulnerabilities
+  fail_on_deps_fixable: false  # true = only vulnerabilities with a fixed version count
   timeout: 5m
   semgrep_rules: auto       # or a custom ruleset path / registry ID
   offline: false            # true = always scan with local data only (same as --offline)
@@ -560,8 +588,8 @@ Dependency ecosystems: Go modules · PyPI · npm · Cargo · Maven · RubyGems �
 
 | Code | Meaning |
 |------|---------|
-| `0` | No secrets or code findings at or above the `--fail-on` threshold |
-| `1` | Secrets or code findings at or above the threshold |
+| `0` | Nothing at or above the `--fail-on` or `--fail-on-deps` thresholds (ignored findings do not count) |
+| `1` | A secret or code finding at or above `--fail-on`, or a dependency vulnerability at or above `--fail-on-deps` |
 | `2` | `scan secrets` or `scan sast`: the scanner is not installed or failed. `scan deps`: neither Trivy nor OSV-Scanner is available |
 
 `scan all` keeps going when one scanner fails or is missing: it prints a
@@ -581,7 +609,6 @@ Released (see [CHANGELOG.md](CHANGELOG.md) for details):
 
 Planned:
 
-- Option to fail a pipeline on dependency vulnerabilities (they do not affect the exit code today)
 - Reachability: whether a vulnerable package's affected functions are actually called
 - SARIF output for GitHub Code Scanning
 - Pre-commit hook installer

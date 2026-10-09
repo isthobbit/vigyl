@@ -258,7 +258,7 @@ func vulnerablePackage(name string, findings []store.DepFindingRecord, confirmed
 		if priorityOrder(f.Severity) > priorityOrder(worst.Severity) {
 			worst = f
 		}
-		fix := nearestFix(f.Version, f.FixedVersion)
+		fix := NearestFix(f.Version, f.FixedVersion)
 		if fix == "" {
 			unfixed[f.Version] = true
 		}
@@ -331,10 +331,10 @@ func vulnerablePackage(name string, findings []store.DepFindingRecord, confirmed
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-// nearestFix picks, from a scanner's list of fixed releases such as
+// NearestFix picks, from a scanner's list of fixed releases such as
 // "1.2.6, 0.2.4" (one per release line), the lowest one above the installed
 // version. It returns "" when no release is listed.
-func nearestFix(installed, fixed string) string {
+func NearestFix(installed, fixed string) string {
 	best := ""
 	for _, c := range strings.Split(fixed, ",") {
 		c = strings.TrimSpace(c)

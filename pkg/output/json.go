@@ -76,7 +76,7 @@ func WriteJSON(w io.Writer, scanPath string, secretsResult *secrets.Result, sast
 		},
 		Secrets:      secretsToJSON(secretsResult),
 		SAST:         sastToJSON(sastResult),
-		Dependencies: depsToJSON(trivyResult, osvResult),
+		Dependencies: MergeDeps(trivyResult, osvResult),
 	}
 
 	report.Total = len(report.Secrets) + len(report.SAST) + len(report.Dependencies)
@@ -187,7 +187,10 @@ func sastToJSON(r *sast.Result) []JSONFinding {
 	return out
 }
 
-func depsToJSON(t *trivy.Result, o *osv.Result) []JSONDepFinding {
+// MergeDeps returns the dependency findings of both scanners with each
+// vulnerability once: the same advisory for the same package version from
+// Trivy and OSV-Scanner becomes one finding listing both in FoundBy.
+func MergeDeps(t *trivy.Result, o *osv.Result) []JSONDepFinding {
 	out := []JSONDepFinding{}
 	// index merges the same advisory for the same package version reported by
 	// both scanners into one finding.

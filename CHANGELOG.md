@@ -7,6 +7,27 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [Unreleased]
+
+### Added
+- `--fail-on-deps <severity>` (`scan.fail_on_deps`) fails `scan all` and
+  `scan deps` on dependency vulnerabilities at or above a severity. Default
+  `none`, so existing pipelines are unchanged. `--fail-on-deps-fixable`
+  (`scan.fail_on_deps_fixable`) counts only vulnerabilities with a fixed
+  version. Each vulnerability counts once across Trivy and OSV-Scanner, and
+  what failed is listed on stderr.
+
+### Changed
+- Findings hidden with `jensec ignore` no longer count towards `--fail-on`;
+  previously an ignored secret still failed the scan.
+
+### Fixed
+- `--fail-on low` failed a scan that found nothing.
+- A misspelt `--fail-on` value, such as `hgh`, failed every scan instead of
+  being rejected.
+
+---
+
 ## [v0.4.0] — 2026-10-09
 
 ### Added

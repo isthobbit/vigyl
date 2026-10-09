@@ -90,6 +90,12 @@ func validate(cfg *Config) error {
 			cfg.Scan.FailOn,
 		)
 	}
+	if !ValidFailOnValues[strings.ToLower(cfg.Scan.FailOnDeps)] {
+		return fmt.Errorf(
+			"invalid scan.fail_on_deps value %q — must be one of: critical, high, medium, low, none",
+			cfg.Scan.FailOnDeps,
+		)
+	}
 	return nil
 }
 
@@ -100,6 +106,8 @@ func applyDefaults(v *viper.Viper) {
 	v.SetDefault("output.no_color", d.Output.NoColor)
 	v.SetDefault("output.verbose", d.Output.Verbose)
 	v.SetDefault("scan.fail_on", d.Scan.FailOn)
+	v.SetDefault("scan.fail_on_deps", d.Scan.FailOnDeps)
+	v.SetDefault("scan.fail_on_deps_fixable", d.Scan.FailOnDepsFixable)
 	v.SetDefault("scan.timeout", d.Scan.Timeout.String())
 	v.SetDefault("scan.exclude_paths", d.Scan.ExcludePaths)
 	v.SetDefault("scan.semgrep_rules", d.Scan.SemgrepRules)

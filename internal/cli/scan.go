@@ -28,9 +28,11 @@ import (
 )
 
 var (
-	scanOutput  string
-	failOn      string
-	offlineFlag bool
+	scanOutput        string
+	failOn            string
+	failOnDeps        string
+	failOnDepsFixable bool
+	offlineFlag       bool
 )
 
 var scanCmd = &cobra.Command{
@@ -75,6 +77,10 @@ func init() {
 		cmd.Flags().StringVar(&failOn, "fail-on", "", "exit 1 at this severity or above (critical|high|medium|low|none)")
 		cmd.Flags().BoolVar(&offlineFlag, "offline", false, "scan with local data only, no network access (prepare with 'jensec offline sync')")
 	}
+	for _, cmd := range []*cobra.Command{scanAllCmd, scanDepsCmd} {
+		cmd.Flags().StringVar(&failOnDeps, "fail-on-deps", "", "exit 1 on a dependency vulnerability at this severity or above (critical|high|medium|low|none; default none)")
+		cmd.Flags().BoolVar(&failOnDepsFixable, "fail-on-deps-fixable", false, "with --fail-on-deps, count only vulnerabilities that have a fixed version")
+	}
 }
 
 func resolvePath(args []string) (string, error) {
@@ -97,6 +103,14 @@ func runScanAll(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	threshold, err := resolveFailOn(cfg)
+	if err != nil {
+		return err
+	}
+	gate, err := resolveDepsGate(cmd, cfg)
+	if err != nil {
+		return err
+	}
 
 	var gitleaksOK, semgrepOK, trivyOK, osvOK bool
 	if setup.offline {
@@ -108,7 +122,6 @@ func runScanAll(cmd *cobra.Command, args []string) error {
 	trivyOK = trivyOK && setup.ready("trivy")
 	osvOK = osvOK && setup.ready("osv")
 
-	threshold := resolveFailOn(cfg)
 	startedAt := time.Now()
 
 	if !jsonOut {
@@ -187,7 +200,13 @@ func runScanAll(cmd *cobra.Command, args []string) error {
 		writeJSONOutput(path, secretsResult, sastResult, trivyResult, osvResult, risks)
 	}
 
-	if shouldFail(threshold, secretsResult, sastResult) {
+	ignored := loadIgnored(cfg)
+	codeFailed := codeFails(threshold, secretsResult, sastResult, ignored)
+	depFailed := depFailures(gate, trivyResult, osvResult, ignored)
+	if len(depFailed) > 0 {
+		printDepFailures(os.Stderr, gate, depFailed)
+	}
+	if codeFailed || len(depFailed) > 0 {
 		os.Exit(1)
 	}
 	return nil
@@ -204,6 +223,10 @@ func runScanSAST(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	threshold, err := resolveFailOn(cfg)
+	if err != nil {
+		return err
+	}
 
 	if !requireTool(installer.Semgrep, setup.offline) {
 		fmt.Fprintln(os.Stderr, "semgrep is required for SAST scanning. Exiting.")
@@ -213,7 +236,6 @@ func runScanSAST(cmd *cobra.Command, args []string) error {
 		os.Exit(2)
 	}
 
-	threshold := resolveFailOn(cfg)
 	startedAt := time.Now()
 
 	if !jsonOut {
@@ -238,7 +260,7 @@ func runScanSAST(cmd *cobra.Command, args []string) error {
 		writeJSONOutput(path, nil, result, nil, nil, risks)
 	}
 
-	if config.MeetsSeverityThreshold(highestSeverity(nil, result), threshold) {
+	if codeFails(threshold, nil, result, loadIgnored(cfg)) {
 		os.Exit(1)
 	}
 	return nil
@@ -255,13 +277,16 @@ func runScanSecrets(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	threshold, err := resolveFailOn(cfg)
+	if err != nil {
+		return err
+	}
 
 	if !requireTool(installer.Gitleaks, setup.offline) {
 		fmt.Fprintln(os.Stderr, "gitleaks is required for secrets scanning. Exiting.")
 		os.Exit(2)
 	}
 
-	threshold := resolveFailOn(cfg)
 	startedAt := time.Now()
 
 	if !jsonOut {
@@ -286,7 +311,7 @@ func runScanSecrets(cmd *cobra.Command, args []string) error {
 		writeJSONOutput(path, result, nil, nil, nil, risks)
 	}
 
-	if config.MeetsSeverityThreshold(highestSeverity(result, nil), threshold) {
+	if codeFails(threshold, result, nil, loadIgnored(cfg)) {
 		os.Exit(1)
 	}
 	return nil
@@ -300,6 +325,10 @@ func runScanDeps(cmd *cobra.Command, args []string) error {
 
 	cfg := loadConfig()
 	setup, err := resolveSetup(cfg)
+	if err != nil {
+		return err
+	}
+	gate, err := resolveDepsGate(cmd, cfg)
 	if err != nil {
 		return err
 	}
@@ -352,6 +381,10 @@ func runScanDeps(cmd *cobra.Command, args []string) error {
 		writeJSONOutput(path, nil, nil, trivyResult, osvResult, risks)
 	}
 
+	if failed := depFailures(gate, trivyResult, osvResult, loadIgnored(cfg)); len(failed) > 0 {
+		printDepFailures(os.Stderr, gate, failed)
+		os.Exit(1)
+	}
 	return nil
 }
 
@@ -459,41 +492,6 @@ func loadConfig() *config.Config {
 		return &d
 	}
 	return cfg
-}
-
-func resolveFailOn(cfg *config.Config) string {
-	if failOn != "" {
-		return strings.ToLower(failOn)
-	}
-	return strings.ToLower(cfg.Scan.FailOn)
-}
-
-func shouldFail(threshold string, s *secrets.Result, a *sast.Result) bool {
-	if threshold == "none" {
-		return false
-	}
-	return config.MeetsSeverityThreshold(highestSeverity(s, a), threshold)
-}
-
-func highestSeverity(s *secrets.Result, a *sast.Result) string {
-	best := ""
-	if s != nil && len(s.Findings) > 0 {
-		if config.SeverityOrder["high"] > config.SeverityOrder[best] {
-			best = "high"
-		}
-	}
-	if a != nil {
-		for _, f := range a.Findings {
-			sev := strings.ToLower(f.Severity)
-			if config.SeverityOrder[sev] > config.SeverityOrder[best] {
-				best = sev
-			}
-		}
-	}
-	if best == "" {
-		return "low"
-	}
-	return best
 }
 
 func countResults(s *secrets.Result, a *sast.Result) (int, int) {

@@ -78,8 +78,8 @@ func TestNearestFix(t *testing.T) {
 		{"4.16.4", "4.19.2, 5.0.0-beta.3", "4.19.2"},
 		{"1.0.0", "", ""},
 	} {
-		if got := nearestFix(c.installed, c.fixed); got != c.want {
-			t.Errorf("nearestFix(%q, %q) = %q, want %q", c.installed, c.fixed, got, c.want)
+		if got := NearestFix(c.installed, c.fixed); got != c.want {
+			t.Errorf("NearestFix(%q, %q) = %q, want %q", c.installed, c.fixed, got, c.want)
 		}
 	}
 }
