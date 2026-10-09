@@ -26,6 +26,11 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   scanners directly.
 
 ### Changed
+- `scan all` runs the four scanners at the same time, and `scan deps` runs
+  Trivy and OSV-Scanner at the same time, so a scan takes about as long as
+  its slowest scanner. Set `scan.parallel: false` (or
+  `VIGYL_SCAN_PARALLEL=false`) to run them one after another on machines
+  with little memory or CPU.
 - Unimported vulnerable packages are labelled, never downgraded; unsupported
   ecosystems say "import use unknown".
 - Each correlation counts once per link, so repeated findings no longer inflate

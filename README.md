@@ -414,6 +414,7 @@ scan:
   timeout: 5m
   semgrep_rules: auto       # or a custom ruleset path / registry ID
   offline: false            # true = always scan with local data only (same as --offline)
+  parallel: true            # run the scanners at the same time; false on small CI runners
   exclude_paths:
     - "**/*_test.go"
     - "fixtures/**"

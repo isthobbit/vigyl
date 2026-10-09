@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/isthobbit/vigyl/internal/config"
@@ -116,21 +117,48 @@ func runScanAll(cmd *cobra.Command, args []string) error {
 		setup.printMode()
 	}
 
-	var secretsResult *secrets.Result
+	// Each scanner is a separate process, so they can run at the same time;
+	// the scan then takes as long as the slowest one rather than the sum.
+	var (
+		secretsResult                         *secrets.Result
+		sastResult                            *sast.Result
+		trivyResult                           *trivy.Result
+		osvResult                             *osv.Result
+		secretsErr, sastErr, trivyErr, osvErr error
+	)
+	var jobs []func()
 	if gitleaksOK {
-		secretsResult, err = secrets.Run(path, verbose, cfg.Scan.Timeout, cfg.Scan.ExcludePaths)
-		if err != nil {
-			printScannerError("secrets", err)
+		jobs = append(jobs, func() {
+			secretsResult, secretsErr = secrets.Run(path, verbose, cfg.Scan.Timeout, cfg.Scan.ExcludePaths)
+		})
+	}
+	if semgrepOK {
+		jobs = append(jobs, func() {
+			sastResult, sastErr = sast.Run(path, verbose, cfg.Scan.Timeout, cfg.Scan.ExcludePaths, setup.sast)
+		})
+	}
+	if trivyOK {
+		jobs = append(jobs, func() {
+			trivyResult, trivyErr = trivy.Run(path, verbose, cfg.Scan.Timeout, cfg.Scan.ExcludePaths, setup.trivy)
+		})
+	}
+	if osvOK {
+		jobs = append(jobs, func() {
+			osvResult, osvErr = osv.Run(path, verbose, cfg.Scan.Timeout, cfg.Scan.ExcludePaths, setup.osv)
+		})
+	}
+	runJobs(cfg.Scan.Parallel, jobs)
+
+	// Errors are reported after every scanner has finished, in a fixed order.
+	for _, e := range []struct {
+		scanner string
+		err     error
+	}{{"secrets", secretsErr}, {"sast", sastErr}, {"trivy", trivyErr}, {"osv", osvErr}} {
+		if e.err != nil {
+			printScannerError(e.scanner, e.err)
 		}
 	}
 
-	var sastResult *sast.Result
-	if semgrepOK {
-		sastResult, err = sast.Run(path, verbose, cfg.Scan.Timeout, cfg.Scan.ExcludePaths, setup.sast)
-		if err != nil {
-			printScannerError("sast", err)
-		}
-	}
 	// Semgrep's secret rules belong with the secrets, so results are printed
 	// once both scanners have run.
 	secretsResult = moveSemgrepSecrets(secretsResult, sastResult)
@@ -140,22 +168,6 @@ func runScanAll(cmd *cobra.Command, args []string) error {
 		}
 		if sastResult != nil {
 			output.PrintSASTResult(sastResult, noColor)
-		}
-	}
-
-	var trivyResult *trivy.Result
-	if trivyOK {
-		trivyResult, err = trivy.Run(path, verbose, cfg.Scan.Timeout, cfg.Scan.ExcludePaths, setup.trivy)
-		if err != nil {
-			printScannerError("trivy", err)
-		}
-	}
-
-	var osvResult *osv.Result
-	if osvOK {
-		osvResult, err = osv.Run(path, verbose, cfg.Scan.Timeout, cfg.Scan.ExcludePaths, setup.osv)
-		if err != nil {
-			printScannerError("osv", err)
 		}
 	}
 
@@ -304,24 +316,29 @@ func runScanDeps(cmd *cobra.Command, args []string) error {
 		setup.printMode()
 	}
 
-	var trivyResult *trivy.Result
+	var (
+		trivyResult      *trivy.Result
+		osvResult        *osv.Result
+		trivyErr, osvErr error
+	)
+	var jobs []func()
 	if trivyOK {
-		trivyResult, err = trivy.Run(path, verbose, cfg.Scan.Timeout, cfg.Scan.ExcludePaths, setup.trivy)
-		if err != nil {
-			printScannerError("trivy", err)
-		}
+		jobs = append(jobs, func() {
+			trivyResult, trivyErr = trivy.Run(path, verbose, cfg.Scan.Timeout, cfg.Scan.ExcludePaths, setup.trivy)
+		})
 	}
-
-	var osvResult *osv.Result
 	if osvOK {
-		osvResult, err = osv.Run(path, verbose, cfg.Scan.Timeout, cfg.Scan.ExcludePaths, setup.osv)
-		if err != nil {
-			printScannerError("osv", err)
-		}
+		jobs = append(jobs, func() {
+			osvResult, osvErr = osv.Run(path, verbose, cfg.Scan.Timeout, cfg.Scan.ExcludePaths, setup.osv)
+		})
 	}
-
-	elapsed := time.Since(startedAt)
-	_ = elapsed
+	runJobs(cfg.Scan.Parallel, jobs)
+	if trivyErr != nil {
+		printScannerError("trivy", trivyErr)
+	}
+	if osvErr != nil {
+		printScannerError("osv", osvErr)
+	}
 
 	risks := persistScan(path, "trivy,osv", startedAt, time.Now(), nil, nil, trivyResult, osvResult)
 
@@ -502,6 +519,26 @@ func activeScanners(gitleaksOK, semgrepOK, trivyOK, osvOK bool) []string {
 		return []string{"none"}
 	}
 	return s
+}
+
+// runJobs runs every job and waits for all of them: at the same time when
+// parallel is true, otherwise one after another.
+func runJobs(parallel bool, jobs []func()) {
+	if !parallel {
+		for _, job := range jobs {
+			job()
+		}
+		return
+	}
+	var wg sync.WaitGroup
+	for _, job := range jobs {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			job()
+		}()
+	}
+	wg.Wait()
 }
 
 func printScannerError(scanner string, err error) {

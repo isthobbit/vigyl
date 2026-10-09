@@ -187,3 +187,21 @@ func TestLoad_CorrelationWeightsAndTrends(t *testing.T) {
 		t.Errorf("trends not read with defaults filled in: %+v", cfg.Trends)
 	}
 }
+
+func TestLoad_ParallelDefaultAndEnv(t *testing.T) {
+	isolateHome(t)
+	cfg, err := config.Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.Scan.Parallel {
+		t.Error("scan.parallel should default to true")
+	}
+	t.Setenv("VIGYL_SCAN_PARALLEL", "false")
+	if cfg, err = config.Load(""); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Scan.Parallel {
+		t.Error("VIGYL_SCAN_PARALLEL=false ignored")
+	}
+}

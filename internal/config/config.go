@@ -53,6 +53,9 @@ type ScanConfig struct {
 	// Offline runs every scanner against local data only, with no network
 	// access. Data is prepared with `jensec offline sync`.
 	Offline bool `mapstructure:"offline"`
+	// Parallel runs the scanners at the same time. Turn it off on machines
+	// with little memory or CPU.
+	Parallel bool `mapstructure:"parallel"`
 }
 
 type StorageConfig struct {
@@ -82,6 +85,7 @@ func Defaults() Config {
 			Timeout:      5 * time.Minute,
 			ExcludePaths: []string{},
 			SemgrepRules: "auto",
+			Parallel:     true,
 		},
 		Storage: StorageConfig{
 			MaxHistory: 100,
