@@ -7,7 +7,7 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
-## [Unreleased]
+## [v0.4.0] — 2026-10-09
 
 ### Added
 - Dependency findings are linked to the source files that import them (Go,
