@@ -4,8 +4,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
+	"slices"
+	"strings"
 	"time"
 
+	"github.com/isthobbit/vigyl/internal/correlate"
+	"github.com/isthobbit/vigyl/internal/paths"
 	"github.com/isthobbit/vigyl/internal/scan/deps/osv"
 	"github.com/isthobbit/vigyl/internal/scan/deps/trivy"
 	"github.com/isthobbit/vigyl/internal/scan/sast"
@@ -20,7 +25,15 @@ type JSONReport struct {
 	SAST         []JSONFinding    `json:"sast"`
 	Dependencies []JSONDepFinding `json:"dependencies"`
 	Total        int              `json:"total_findings"`
+	RiskScore    float64          `json:"risk_score"`
+	RiskBand     string           `json:"risk_band,omitempty"`
+	// TopRisks are the highest-scoring files and packages, each with the
+	// reasons behind its score.
+	TopRisks []correlate.Risk `json:"top_risks"`
 }
+
+// TopRiskCount is how many files and packages "top risks" lists.
+const TopRiskCount = 10
 
 type JSONMeta struct {
 	ScanPath  string    `json:"scan_path"`
@@ -39,18 +52,22 @@ type JSONFinding struct {
 }
 
 type JSONDepFinding struct {
-	Scanner      string `json:"scanner"`
-	Severity     string `json:"severity"`
-	Package      string `json:"package"`
-	Version      string `json:"version"`
-	CVEID        string `json:"cve_id,omitempty"`
-	Ecosystem    string `json:"ecosystem,omitempty"`
-	FixedVersion string `json:"fixed_version,omitempty"`
-	Description  string `json:"description,omitempty"`
+	// Scanner is the first scanner that reported the finding; FoundBy lists
+	// every scanner that did, when Trivy and OSV-Scanner agree.
+	Scanner      string   `json:"scanner"`
+	FoundBy      []string `json:"found_by"`
+	Manifest     string   `json:"manifest,omitempty"`
+	Severity     string   `json:"severity"`
+	Package      string   `json:"package"`
+	Version      string   `json:"version"`
+	CVEID        string   `json:"cve_id,omitempty"`
+	Ecosystem    string   `json:"ecosystem,omitempty"`
+	FixedVersion string   `json:"fixed_version,omitempty"`
+	Description  string   `json:"description,omitempty"`
 }
 
 // WriteJSON serialises secrets, SAST, and dependency results to w as a single JSON report.
-func WriteJSON(w io.Writer, scanPath string, secretsResult *secrets.Result, sastResult *sast.Result, trivyResult *trivy.Result, osvResult *osv.Result) error {
+func WriteJSON(w io.Writer, scanPath string, secretsResult *secrets.Result, sastResult *sast.Result, trivyResult *trivy.Result, osvResult *osv.Result, risks *correlate.Result) error {
 	report := JSONReport{
 		Meta: JSONMeta{
 			ScanPath:  scanPath,
@@ -63,6 +80,12 @@ func WriteJSON(w io.Writer, scanPath string, secretsResult *secrets.Result, sast
 	}
 
 	report.Total = len(report.Secrets) + len(report.SAST) + len(report.Dependencies)
+	report.TopRisks = []correlate.Risk{}
+	if risks != nil {
+		report.RiskScore = math.Round(risks.Overall*10) / 10
+		report.RiskBand = string(correlate.BandFor(risks.Overall))
+		report.TopRisks = risks.Top(TopRiskCount)
+	}
 
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
@@ -137,7 +160,7 @@ func secretsToJSON(r *secrets.Result) []JSONFinding {
 			Scanner:  "secrets",
 			Severity: "HIGH",
 			RuleID:   f.RuleID,
-			File:     f.File,
+			File:     paths.Rel(r.ScanPath, f.File),
 			Line:     f.StartLine,
 			Message:  f.Description,
 			Match:    redactSecret(f.Match, f.Secret),
@@ -156,7 +179,7 @@ func sastToJSON(r *sast.Result) []JSONFinding {
 			Scanner:  "sast",
 			Severity: f.Severity,
 			RuleID:   f.RuleID,
-			File:     f.Path,
+			File:     paths.Rel(r.ScanPath, f.Path),
 			Line:     f.Start.Line,
 			Message:  f.Message,
 		})
@@ -165,39 +188,51 @@ func sastToJSON(r *sast.Result) []JSONFinding {
 }
 
 func depsToJSON(t *trivy.Result, o *osv.Result) []JSONDepFinding {
-	var out []JSONDepFinding
+	out := []JSONDepFinding{}
+	// index merges the same advisory for the same package version reported by
+	// both scanners into one finding.
+	index := map[string]int{}
+	add := func(scanner, severity, pkg, version, cve, eco, fixed, desc, manifest string) {
+		key := pkg + "@" + version + "|" + cve
+		if i, ok := index[key]; ok && cve != "" {
+			d := &out[i]
+			// OSV can list one CVE under several IDs (PYSEC and GHSA).
+			if !slices.Contains(d.FoundBy, scanner) {
+				d.FoundBy = append(d.FoundBy, scanner)
+			}
+			if severityOrder(severity) > severityOrder(d.Severity) {
+				d.Severity = severity
+			}
+			if d.FixedVersion == "" {
+				d.FixedVersion = fixed
+			}
+			if d.Description == "" {
+				d.Description = desc
+			}
+			return
+		}
+		index[key] = len(out)
+		out = append(out, JSONDepFinding{
+			Scanner: scanner, FoundBy: []string{scanner}, Manifest: manifest,
+			Severity: severity, Package: pkg, Version: version, CVEID: cve,
+			Ecosystem: eco, FixedVersion: fixed, Description: desc,
+		})
+	}
 	if t != nil {
 		for _, f := range t.Findings {
-			out = append(out, JSONDepFinding{
-				Scanner:      "trivy",
-				Severity:     f.Severity,
-				Package:      f.Package,
-				Version:      f.Version,
-				CVEID:        f.CVEID,
-				Ecosystem:    f.Ecosystem,
-				FixedVersion: f.FixedVersion,
-				Description:  f.Description,
-			})
+			add("trivy", f.Severity, f.Package, f.Version, f.CVEID, f.Ecosystem, f.FixedVersion, f.Description, f.Manifest)
 		}
 	}
 	if o != nil {
 		for _, f := range o.Findings {
-			out = append(out, JSONDepFinding{
-				Scanner:      "osv",
-				Severity:     f.Severity,
-				Package:      f.Package,
-				Version:      f.Version,
-				CVEID:        f.CVEID,
-				Ecosystem:    f.Ecosystem,
-				FixedVersion: f.FixedVersion,
-				Description:  f.Description,
-			})
+			add("osv", f.Severity, f.Package, f.Version, f.CVEID, f.Ecosystem, f.FixedVersion, f.Description, f.Manifest)
 		}
 	}
-	if out == nil {
-		return []JSONDepFinding{}
-	}
 	return out
+}
+
+func severityOrder(s string) int {
+	return map[string]int{"LOW": 1, "MEDIUM": 2, "HIGH": 3, "CRITICAL": 4}[strings.ToUpper(s)]
 }
 
 func activeScanners(s *secrets.Result, a *sast.Result, t *trivy.Result, o *osv.Result) []string {

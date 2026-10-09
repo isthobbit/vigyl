@@ -104,12 +104,16 @@ func applyDefaults(v *viper.Viper) {
 	v.SetDefault("scan.exclude_paths", d.Scan.ExcludePaths)
 	v.SetDefault("scan.semgrep_rules", d.Scan.SemgrepRules)
 	v.SetDefault("scan.offline", d.Scan.Offline)
+	v.SetDefault("scan.parallel", d.Scan.Parallel)
 	v.SetDefault("storage.offline_dir", d.Storage.OfflineDir)
 	v.SetDefault("storage.max_history", d.Storage.MaxHistory)
 	// viper only maps VIGYL_* environment variables onto keys it already
 	// knows, so every key needs a default, even an empty one.
 	v.SetDefault("storage.db_path", d.Storage.DBPath)
 	v.SetDefault("auth.license_key", d.Auth.LicenseKey)
+	v.SetDefault("trends.lookback_scans", d.Trends.LookbackScans)
+	v.SetDefault("trends.min_scans_required", d.Trends.MinScansRequired)
+	v.SetDefault("trends.recurring_threshold", d.Trends.RecurringThreshold)
 }
 
 // Locate returns the config file Load would read, or "" when none exists.

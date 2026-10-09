@@ -3,9 +3,12 @@ package output
 import (
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
+	"github.com/isthobbit/vigyl/internal/correlate"
+	"github.com/isthobbit/vigyl/internal/paths"
 	"github.com/isthobbit/vigyl/internal/recommend"
 	"github.com/isthobbit/vigyl/internal/scan/sast"
 	"github.com/isthobbit/vigyl/internal/scan/secrets"
@@ -40,11 +43,18 @@ func PrintSecretsResult(result *secrets.Result, noColor bool) {
 	}
 
 	byFile := make(map[string][]secrets.Finding)
+	var files []string
 	for _, f := range result.Findings {
-		byFile[f.File] = append(byFile[f.File], f)
+		file := paths.Rel(result.ScanPath, f.File)
+		if _, ok := byFile[file]; !ok {
+			files = append(files, file)
+		}
+		byFile[file] = append(byFile[file], f)
 	}
+	sort.Strings(files)
 
-	for file, findings := range byFile {
+	for _, file := range files {
+		findings := byFile[file]
 		fmt.Printf("  %s\n", colorize(noColor, cyan, file))
 		fmt.Println("  " + strings.Repeat("─", 60))
 
@@ -55,7 +65,10 @@ func PrintSecretsResult(result *secrets.Result, noColor bool) {
 			)
 			fmt.Printf("    Rule:    %s\n", f.RuleID)
 			fmt.Printf("    Line:    %d\n", f.StartLine)
-			fmt.Printf("    Match:   %s\n", redactSecret(f.Match, f.Secret))
+			// Secrets found by Semgrep carry no match: it cannot be redacted.
+			if f.Match != "" {
+				fmt.Printf("    Match:   %s\n", redactSecret(f.Match, f.Secret))
+			}
 			if f.Commit != "" {
 				fmt.Printf("    Commit:  %s (%s)\n", f.Commit[:min(8, len(f.Commit))], f.Author)
 			}
@@ -127,6 +140,31 @@ func wordWrap(text string, maxWidth int, indent string) string {
 	return result.String()
 }
 
+// PrintScanProgress says the scanners are running, so the wait before the
+// results appear does not look like a hang. Only an interactive terminal
+// gets it; logs and pipes go straight to the results.
+func PrintScanProgress(scanners []string, parallel, noColor bool) {
+	if !IsTerminal(os.Stdout) || len(scanners) == 0 {
+		return
+	}
+	fmt.Println(colorize(noColor, dim, scanProgress(scanners, parallel)))
+	fmt.Println()
+}
+
+func scanProgress(scanners []string, parallel bool) string {
+	list := scanners[0]
+	if n := len(scanners); n > 1 {
+		list = strings.Join(scanners[:n-1], ", ") + " and " + scanners[n-1]
+	}
+	how := "one after another"
+	if parallel && len(scanners) > 1 {
+		how = "at the same time"
+	} else if len(scanners) == 1 {
+		how = ""
+	}
+	return strings.TrimRight("   Running "+list+" "+how, " ") + "…"
+}
+
 // PrintScanHeader prints the scan banner.
 func PrintScanHeader(path string, scanners []string, noColor bool) {
 	if IsTerminal(os.Stdout) {
@@ -154,7 +192,7 @@ func PrintSASTResult(result *sast.Result, noColor bool) {
 		sevColor := severityColour(f.Severity)
 		fmt.Printf("  %s  %s\n",
 			colorize(noColor, sevColor, f.Severity),
-			colorize(noColor, cyan, f.Path),
+			colorize(noColor, cyan, paths.Rel(result.ScanPath, f.Path)),
 		)
 		fmt.Printf("    Rule:    %s\n", f.RuleID)
 		fmt.Printf("    Line:    %d\n", f.Start.Line)
@@ -218,5 +256,31 @@ func effortBadge(e recommend.Effort) string {
 		return "[LONG TERM]"
 	default:
 		return ""
+	}
+}
+
+// PrintTopRisks lists the highest-scoring files and packages with the
+// reasons behind each score.
+func PrintTopRisks(res *correlate.Result, noColor bool) {
+	if res == nil {
+		return
+	}
+	risks := res.Top(TopRiskCount)
+	if len(risks) == 0 {
+		return
+	}
+	fmt.Printf("\n%s  %s\n\n",
+		colorize(noColor, bold, "Top risks"),
+		colorize(noColor, dim, fmt.Sprintf("overall %.1f/10 %s", res.Overall, correlate.BandFor(res.Overall))))
+	for _, r := range risks {
+		band := string(r.Band)
+		fmt.Printf("  %s  %s  %s\n",
+			colorize(noColor, severityColour(band), fmt.Sprintf("%-8s", band)),
+			colorize(noColor, bold, r.Name),
+			colorize(noColor, dim, fmt.Sprintf("(%s, score %.1f)", r.Kind, r.Score)))
+		for _, w := range r.Why {
+			fmt.Printf("            • %s\n", w)
+		}
+		fmt.Println()
 	}
 }

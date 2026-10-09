@@ -9,8 +9,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
+
+	"github.com/isthobbit/vigyl/internal/paths"
 )
 
 // ErrOSVNotFound is returned when the osv-scanner binary is not in PATH.
@@ -87,6 +90,10 @@ func Run(scanPath string, verbose bool, timeout time.Duration, excludePaths []st
 		return nil, fmt.Errorf("could not parse osv-scanner output: %w", err)
 	}
 
+	for i := range findings {
+		findings[i].Manifest = paths.Rel(absPath, findings[i].Manifest)
+	}
+
 	return &Result{
 		Findings:     findings,
 		ScanPath:     absPath,
@@ -154,7 +161,8 @@ func parseOutput(data []byte) ([]Finding, error) {
 	for _, result := range report.Results {
 		for _, pkg := range result.Packages {
 			for _, vuln := range pkg.Vulnerabilities {
-				cveID := extractCVE(vuln.ID, pkg.Groups)
+				group := groupFor(vuln.ID, pkg.Groups)
+				cveID := extractCVE(vuln.ID, vuln.Aliases, group)
 				fixedVersion := extractFixedVersion(vuln.Affected)
 				desc := vuln.Summary
 				if desc == "" {
@@ -165,10 +173,11 @@ func parseOutput(data []byte) ([]Finding, error) {
 					Package:      pkg.Package.Name,
 					Version:      pkg.Package.Version,
 					CVEID:        cveID,
-					Severity:     normaliseSeverity(vuln.Severity),
+					Severity:     severityFor(vuln, group),
 					Ecosystem:    pkg.Package.Ecosystem,
 					FixedVersion: fixedVersion,
 					Description:  desc,
+					Manifest:     result.Source.Path,
 				})
 			}
 		}
@@ -177,21 +186,61 @@ func parseOutput(data []byte) ([]Finding, error) {
 	return findings, nil
 }
 
-// extractCVE returns the CVE ID from the vuln ID or group aliases.
-// OSV IDs look like "GHSA-xxxx" or "CVE-xxxx"; we prefer CVE IDs.
-func extractCVE(id string, groups []osvGroup) string {
+// groupFor returns the group describing the vulnerability with this ID.
+func groupFor(id string, groups []osvGroup) *osvGroup {
+	for i := range groups {
+		for _, gid := range groups[i].IDs {
+			if gid == id {
+				return &groups[i]
+			}
+		}
+	}
+	return nil
+}
+
+// extractCVE returns the vulnerability's CVE ID, so findings line up with
+// Trivy's, which uses CVE IDs. OSV identifies vulnerabilities by GHSA or
+// ecosystem IDs (PYSEC-…) and lists the CVE among the aliases. Only this
+// vulnerability's own aliases and group are consulted.
+func extractCVE(id string, aliases []string, group *osvGroup) string {
 	if strings.HasPrefix(id, "CVE-") {
 		return id
 	}
-	for _, g := range groups {
-		for _, alias := range g.IDs {
-			if strings.HasPrefix(alias, "CVE-") {
-				return alias
-			}
+	candidates := aliases
+	if group != nil {
+		candidates = append(append([]string{}, aliases...), group.Aliases...)
+	}
+	for _, alias := range candidates {
+		if strings.HasPrefix(alias, "CVE-") {
+			return alias
 		}
 	}
 	// Fall back to the OSV ID if no CVE alias exists.
 	return id
+}
+
+// severityFor prefers the group's numeric max_severity score; OSV's own
+// severity field usually holds a CVSS vector, which carries no score.
+func severityFor(vuln osvVulnerability, group *osvGroup) string {
+	if group != nil {
+		if score, err := strconv.ParseFloat(group.MaxSeverity, 64); err == nil {
+			return bandForScore(score)
+		}
+	}
+	return normaliseSeverity(vuln.Severity)
+}
+
+func bandForScore(score float64) string {
+	switch {
+	case score >= 9.0:
+		return "CRITICAL"
+	case score >= 7.0:
+		return "HIGH"
+	case score >= 4.0:
+		return "MEDIUM"
+	default:
+		return "LOW"
+	}
 }
 
 // extractFixedVersion returns the first fixed version found in affected ranges.
@@ -208,39 +257,29 @@ func extractFixedVersion(affected []osvAffected) string {
 	return ""
 }
 
-// normaliseSeverity maps OSV CVSS score strings to our severity bands.
-// OSV uses CVSS v3 scores (0.0–10.0) in the severity array.
+// normaliseSeverity maps OSV severity entries to our bands when they hold a
+// plain numeric score. A CVSS vector cannot be scored here, so it yields
+// MEDIUM rather than LOW: under-reporting is worse than over-reporting.
 func normaliseSeverity(severities []osvSeverity) string {
 	for _, s := range severities {
-		if s.Type == "CVSS_V3" {
-			score := parseCVSSScore(s.Score)
-			switch {
-			case score >= 9.0:
-				return "CRITICAL"
-			case score >= 7.0:
-				return "HIGH"
-			case score >= 4.0:
-				return "MEDIUM"
-			default:
-				return "LOW"
-			}
+		if s.Type != "CVSS_V3" && s.Type != "CVSS_V4" {
+			continue
+		}
+		if score, ok := parseCVSSScore(s.Score); ok {
+			return bandForScore(score)
 		}
 	}
-	// No CVSS score available — default to MEDIUM to avoid under-reporting.
 	return "MEDIUM"
 }
 
-// parseCVSSScore extracts the base score from a CVSS v3 vector string.
-// OSV may return either a raw score ("7.5") or a full vector
-// ("CVSS:3.1/AV:N/AC:L/..."). We handle both.
-func parseCVSSScore(score string) float64 {
-	// If it's a plain number, parse directly.
-	var f float64
-	if _, err := fmt.Sscanf(score, "%f", &f); err == nil && f >= 0 && f <= 10 {
-		return f
+// parseCVSSScore reads a plain numeric score ("7.5"). It reports false for
+// a CVSS vector ("CVSS:3.1/AV:N/..."), which does not contain the score.
+func parseCVSSScore(score string) (float64, bool) {
+	f, err := strconv.ParseFloat(strings.TrimSpace(score), 64)
+	if err != nil || f < 0 || f > 10 {
+		return 0, false
 	}
-	// CVSS vector strings don't embed a plain score — return 0 to trigger LOW.
-	return 0
+	return f, true
 }
 
 // ParseOutputForTest is an exported shim that exposes parseOutput for unit

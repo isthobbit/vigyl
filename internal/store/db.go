@@ -105,6 +105,12 @@ func (db *DB) migrate() error {
 		if err := db.applyMigration(migrateV2ToV3); err != nil {
 			return fmt.Errorf("migrating v2 to v3: %w", err)
 		}
+		fallthrough
+
+	case current < 4:
+		if err := db.applyMigration(migrateV3ToV4); err != nil {
+			return fmt.Errorf("migrating v3 to v4: %w", err)
+		}
 	}
 
 	return nil
@@ -173,8 +179,8 @@ func (db *DB) SaveDependencyFindings(scanID int64, findings []DepFindingRecord) 
 	defer tx.Rollback()
 
 	stmt, err := tx.Prepare(`
-		INSERT INTO dependency_findings (scan_id, scanner, severity, package, version, cve_id, ecosystem, fixed_version, description)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO dependency_findings (scan_id, scanner, severity, package, version, cve_id, ecosystem, fixed_version, description, manifest)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
 		return fmt.Errorf("could not prepare dependency finding insert: %w", err)
@@ -182,7 +188,7 @@ func (db *DB) SaveDependencyFindings(scanID int64, findings []DepFindingRecord) 
 	defer stmt.Close()
 
 	for _, f := range findings {
-		if _, err := stmt.Exec(scanID, f.Scanner, f.Severity, f.Package, f.Version, f.CVEID, f.Ecosystem, f.FixedVersion, f.Description); err != nil {
+		if _, err := stmt.Exec(scanID, f.Scanner, f.Severity, f.Package, f.Version, f.CVEID, f.Ecosystem, f.FixedVersion, f.Description, f.Manifest); err != nil {
 			return fmt.Errorf("could not insert dependency finding: %w", err)
 		}
 	}
@@ -420,9 +426,9 @@ func (db *DB) CodeFindingByID(id int64) (*CodeFindingRecord, error) {
 func (db *DB) DepFindingByID(id int64) (*DepFindingRecord, error) {
 	var f DepFindingRecord
 	err := db.conn.QueryRow(`
-		SELECT id, scan_id, scanner, severity, package, version, cve_id, ecosystem, fixed_version, description
+		SELECT id, scan_id, scanner, severity, package, version, cve_id, ecosystem, fixed_version, description, manifest
 		FROM dependency_findings WHERE id = ?
-	`, id).Scan(&f.ID, &f.ScanID, &f.Scanner, &f.Severity, &f.Package, &f.Version, &f.CVEID, &f.Ecosystem, &f.FixedVersion, &f.Description)
+	`, id).Scan(&f.ID, &f.ScanID, &f.Scanner, &f.Severity, &f.Package, &f.Version, &f.CVEID, &f.Ecosystem, &f.FixedVersion, &f.Description, &f.Manifest)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -478,7 +484,7 @@ func (db *DB) CodeFindingsForScan(scanID int64) ([]CodeFindingRecord, error) {
 // DepFindingsForScan returns all dependency findings for a given scan ID.
 func (db *DB) DepFindingsForScan(scanID int64) ([]DepFindingRecord, error) {
 	rows, err := db.conn.Query(`
-		SELECT id, scan_id, scanner, severity, package, version, cve_id, ecosystem, fixed_version, description
+		SELECT id, scan_id, scanner, severity, package, version, cve_id, ecosystem, fixed_version, description, manifest
 		FROM dependency_findings
 		WHERE scan_id = ?
 		ORDER BY severity, package
@@ -491,7 +497,7 @@ func (db *DB) DepFindingsForScan(scanID int64) ([]DepFindingRecord, error) {
 	var findings []DepFindingRecord
 	for rows.Next() {
 		var f DepFindingRecord
-		if err := rows.Scan(&f.ID, &f.ScanID, &f.Scanner, &f.Severity, &f.Package, &f.Version, &f.CVEID, &f.Ecosystem, &f.FixedVersion, &f.Description); err != nil {
+		if err := rows.Scan(&f.ID, &f.ScanID, &f.Scanner, &f.Severity, &f.Package, &f.Version, &f.CVEID, &f.Ecosystem, &f.FixedVersion, &f.Description, &f.Manifest); err != nil {
 			return nil, err
 		}
 		findings = append(findings, f)

@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/isthobbit/vigyl/internal/paths"
 )
 
 // ErrTrivyNotFound is returned when the trivy binary is not in PATH.
@@ -81,6 +83,10 @@ func Run(scanPath string, verbose bool, timeout time.Duration, excludePaths []st
 	findings, err := parseOutput(stdout.Bytes())
 	if err != nil {
 		return nil, fmt.Errorf("could not parse trivy output: %w", err)
+	}
+
+	for i := range findings {
+		findings[i].Manifest = paths.Rel(absPath, findings[i].Manifest)
 	}
 
 	return &Result{
@@ -179,6 +185,7 @@ func parseOutput(data []byte) ([]Finding, error) {
 				Ecosystem:    ecosystem,
 				FixedVersion: v.FixedVersion,
 				Description:  desc,
+				Manifest:     result.Target,
 			})
 		}
 	}

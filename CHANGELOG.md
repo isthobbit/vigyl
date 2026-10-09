@@ -7,6 +7,74 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [Unreleased]
+
+### Added
+- Dependency findings are linked to the source files that import them (Go,
+  JavaScript/TypeScript, Python), scoped to each manifest's directory so
+  monorepos link correctly. New rule `secret_in_file_using_vulnerable_package`;
+  `vuln_code_in_vulnerable_file` now uses real imports instead of matching the
+  package name against the file path.
+- "Top risks" after each scan: the highest-scoring files and packages with the
+  reasons behind each score. Also in `--json` as `top_risks`, with
+  `risk_score` and `risk_band`.
+- `--json` dependency findings have `found_by` and `manifest`; a CVE reported by
+  both Trivy and OSV-Scanner appears once.
+- README section "How scoring works".
+- `top_risks` entries for packages have `versions`.
+- README example: a scan of OWASP NodeGoat compared with running the four
+  scanners directly.
+
+### Changed
+- `scan all` runs the four scanners at the same time, and `scan deps` runs
+  Trivy and OSV-Scanner at the same time, so a scan takes about as long as
+  its slowest scanner. Set `scan.parallel: false` (or
+  `VIGYL_SCAN_PARALLEL=false`) to run them one after another on machines
+  with little memory or CPU. In an interactive terminal they print which
+  scanners are running while they work.
+- Unimported vulnerable packages are labelled, never downgraded; unsupported
+  ecosystems say "import use unknown".
+- Each correlation counts once per link, so repeated findings no longer inflate
+  a score.
+- Removed `secret_and_vuln_in_same_file`, which duplicated
+  `secret_in_vulnerable_file` and counted the same fact twice.
+- Database schema v4 records each dependency finding's manifest.
+- Semgrep's secret rules (`generic.secrets.*`) are reported as secrets, not
+  code vulnerabilities, and one Gitleaks already found on the same line is
+  dropped. Previously a private key could be reported as a secret in a file
+  with a code vulnerability: itself.
+- Top risks lists each package once with all its vulnerable versions, and at
+  equal scores puts files and imported packages first. Scores are unchanged.
+- One recommendation per vulnerable package, replacing the separate "CVE
+  confirmed", "confirmed by multiple scanners" and "multiple
+  vulnerabilities" ones for each version. It names, for each installed
+  version, the lowest release that fixes all of its known vulnerabilities.
+- File paths in `--json`, scan output and recommendations are relative to the
+  scanned folder. Scan history still stores full paths, so `jensec ignore`
+  rules keep matching.
+
+### Fixed
+- OSV-Scanner severities: CVSS vectors were scored as LOW, so OSV reported no
+  HIGH or CRITICAL findings. The group's numeric score is now used, and an
+  unscorable vector counts as MEDIUM.
+- OSV findings now carry their CVE ID from the advisory's aliases, so they match
+  Trivy's. Previously a finding could also be given an unrelated CVE.
+- On Windows, gitleaks and semgrep report the same file with different path
+  separators, so the same-file rules never matched. Paths are now normalised.
+- `multiple_cves_in_same_package` counted one CVE reported by both scanners as
+  two.
+- `correlation.weights` and `trends` settings in the config were ignored.
+- README: the exit codes table said dependency findings, and a scanner failing
+  during `scan all`, changed the exit code. Neither does; the table now says
+  what jensec does.
+
+### Removed
+- The one-time move of scan history and config from the old data folder,
+  added in v0.3.0. Every release before v0.3.0 had no users besides the
+  maintainer, so jensec now only uses `~/.vigyl`.
+
+---
+
 ## [v0.3.0] — 2026-10-05
 
 ### Added

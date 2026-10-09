@@ -4,13 +4,18 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/isthobbit/vigyl/internal/config"
 	"github.com/isthobbit/vigyl/internal/correlate"
+	"github.com/isthobbit/vigyl/internal/globs"
+	"github.com/isthobbit/vigyl/internal/imports"
 	"github.com/isthobbit/vigyl/internal/installer"
 	"github.com/isthobbit/vigyl/internal/offline"
+	"github.com/isthobbit/vigyl/internal/paths"
 	"github.com/isthobbit/vigyl/internal/recommend"
 	"github.com/isthobbit/vigyl/internal/scan/deps/osv"
 	"github.com/isthobbit/vigyl/internal/scan/deps/trivy"
@@ -112,39 +117,60 @@ func runScanAll(cmd *cobra.Command, args []string) error {
 		setup.printMode()
 	}
 
-	var secretsResult *secrets.Result
+	// Each scanner is a separate process, so they can run at the same time;
+	// the scan then takes as long as the slowest one rather than the sum.
+	var (
+		secretsResult                         *secrets.Result
+		sastResult                            *sast.Result
+		trivyResult                           *trivy.Result
+		osvResult                             *osv.Result
+		secretsErr, sastErr, trivyErr, osvErr error
+	)
+	var jobs []func()
 	if gitleaksOK {
-		secretsResult, err = secrets.Run(path, verbose, cfg.Scan.Timeout, cfg.Scan.ExcludePaths)
-		if err != nil {
-			printScannerError("secrets", err)
-		} else if !jsonOut {
+		jobs = append(jobs, func() {
+			secretsResult, secretsErr = secrets.Run(path, verbose, cfg.Scan.Timeout, cfg.Scan.ExcludePaths)
+		})
+	}
+	if semgrepOK {
+		jobs = append(jobs, func() {
+			sastResult, sastErr = sast.Run(path, verbose, cfg.Scan.Timeout, cfg.Scan.ExcludePaths, setup.sast)
+		})
+	}
+	if trivyOK {
+		jobs = append(jobs, func() {
+			trivyResult, trivyErr = trivy.Run(path, verbose, cfg.Scan.Timeout, cfg.Scan.ExcludePaths, setup.trivy)
+		})
+	}
+	if osvOK {
+		jobs = append(jobs, func() {
+			osvResult, osvErr = osv.Run(path, verbose, cfg.Scan.Timeout, cfg.Scan.ExcludePaths, setup.osv)
+		})
+	}
+	if !jsonOut && len(jobs) > 0 {
+		output.PrintScanProgress(activeScanners(gitleaksOK, semgrepOK, trivyOK, osvOK), cfg.Scan.Parallel, noColor)
+	}
+	runJobs(cfg.Scan.Parallel, jobs)
+
+	// Errors are reported after every scanner has finished, in a fixed order.
+	for _, e := range []struct {
+		scanner string
+		err     error
+	}{{"secrets", secretsErr}, {"sast", sastErr}, {"trivy", trivyErr}, {"osv", osvErr}} {
+		if e.err != nil {
+			printScannerError(e.scanner, e.err)
+		}
+	}
+
+	// Semgrep's secret rules belong with the secrets, so results are printed
+	// once both scanners have run.
+	secretsResult = moveSemgrepSecrets(secretsResult, sastResult)
+	if !jsonOut {
+		if secretsResult != nil {
 			output.PrintSecretsResult(secretsResult, noColor)
 		}
-	}
-
-	var sastResult *sast.Result
-	if semgrepOK {
-		sastResult, err = sast.Run(path, verbose, cfg.Scan.Timeout, cfg.Scan.ExcludePaths, setup.sast)
-		if err != nil {
-			printScannerError("sast", err)
-		} else if !jsonOut {
+		if sastResult != nil {
 			output.PrintSASTResult(sastResult, noColor)
-		}
-	}
-
-	var trivyResult *trivy.Result
-	if trivyOK {
-		trivyResult, err = trivy.Run(path, verbose, cfg.Scan.Timeout, cfg.Scan.ExcludePaths, setup.trivy)
-		if err != nil {
-			printScannerError("trivy", err)
-		}
-	}
-
-	var osvResult *osv.Result
-	if osvOK {
-		osvResult, err = osv.Run(path, verbose, cfg.Scan.Timeout, cfg.Scan.ExcludePaths, setup.osv)
-		if err != nil {
-			printScannerError("osv", err)
 		}
 	}
 
@@ -155,10 +181,10 @@ func runScanAll(cmd *cobra.Command, args []string) error {
 		output.PrintScanSummary(sc, ac, elapsed, noColor)
 	}
 
-	persistScan(path, "secrets,sast,trivy,osv", startedAt, time.Now(), secretsResult, sastResult, trivyResult, osvResult)
+	risks := persistScan(path, "secrets,sast,trivy,osv", startedAt, time.Now(), secretsResult, sastResult, trivyResult, osvResult)
 
 	if jsonOut || scanOutput != "" {
-		writeJSONOutput(path, secretsResult, sastResult, trivyResult, osvResult)
+		writeJSONOutput(path, secretsResult, sastResult, trivyResult, osvResult, risks)
 	}
 
 	if shouldFail(threshold, secretsResult, sastResult) {
@@ -206,10 +232,10 @@ func runScanSAST(cmd *cobra.Command, args []string) error {
 		output.PrintScanSummary(0, len(result.Findings), time.Since(startedAt), noColor)
 	}
 
-	persistScan(path, "sast", startedAt, time.Now(), nil, result, nil, nil)
+	risks := persistScan(path, "sast", startedAt, time.Now(), nil, result, nil, nil)
 
 	if jsonOut || scanOutput != "" {
-		writeJSONOutput(path, nil, result, nil, nil)
+		writeJSONOutput(path, nil, result, nil, nil, risks)
 	}
 
 	if config.MeetsSeverityThreshold(highestSeverity(nil, result), threshold) {
@@ -254,10 +280,10 @@ func runScanSecrets(cmd *cobra.Command, args []string) error {
 		output.PrintScanSummary(len(result.Findings), 0, time.Since(startedAt), noColor)
 	}
 
-	persistScan(path, "secrets", startedAt, time.Now(), result, nil, nil, nil)
+	risks := persistScan(path, "secrets", startedAt, time.Now(), result, nil, nil, nil)
 
 	if jsonOut || scanOutput != "" {
-		writeJSONOutput(path, result, nil, nil, nil)
+		writeJSONOutput(path, result, nil, nil, nil, risks)
 	}
 
 	if config.MeetsSeverityThreshold(highestSeverity(result, nil), threshold) {
@@ -293,29 +319,37 @@ func runScanDeps(cmd *cobra.Command, args []string) error {
 		setup.printMode()
 	}
 
-	var trivyResult *trivy.Result
+	var (
+		trivyResult      *trivy.Result
+		osvResult        *osv.Result
+		trivyErr, osvErr error
+	)
+	var jobs []func()
 	if trivyOK {
-		trivyResult, err = trivy.Run(path, verbose, cfg.Scan.Timeout, cfg.Scan.ExcludePaths, setup.trivy)
-		if err != nil {
-			printScannerError("trivy", err)
-		}
+		jobs = append(jobs, func() {
+			trivyResult, trivyErr = trivy.Run(path, verbose, cfg.Scan.Timeout, cfg.Scan.ExcludePaths, setup.trivy)
+		})
 	}
-
-	var osvResult *osv.Result
 	if osvOK {
-		osvResult, err = osv.Run(path, verbose, cfg.Scan.Timeout, cfg.Scan.ExcludePaths, setup.osv)
-		if err != nil {
-			printScannerError("osv", err)
-		}
+		jobs = append(jobs, func() {
+			osvResult, osvErr = osv.Run(path, verbose, cfg.Scan.Timeout, cfg.Scan.ExcludePaths, setup.osv)
+		})
+	}
+	if !jsonOut && len(jobs) > 0 {
+		output.PrintScanProgress(activeScanners(false, false, trivyOK, osvOK), cfg.Scan.Parallel, noColor)
+	}
+	runJobs(cfg.Scan.Parallel, jobs)
+	if trivyErr != nil {
+		printScannerError("trivy", trivyErr)
+	}
+	if osvErr != nil {
+		printScannerError("osv", osvErr)
 	}
 
-	elapsed := time.Since(startedAt)
-	_ = elapsed
-
-	persistScan(path, "trivy,osv", startedAt, time.Now(), nil, nil, trivyResult, osvResult)
+	risks := persistScan(path, "trivy,osv", startedAt, time.Now(), nil, nil, trivyResult, osvResult)
 
 	if jsonOut || scanOutput != "" {
-		writeJSONOutput(path, nil, nil, trivyResult, osvResult)
+		writeJSONOutput(path, nil, nil, trivyResult, osvResult, risks)
 	}
 
 	return nil
@@ -493,6 +527,26 @@ func activeScanners(gitleaksOK, semgrepOK, trivyOK, osvOK bool) []string {
 	return s
 }
 
+// runJobs runs every job and waits for all of them: at the same time when
+// parallel is true, otherwise one after another.
+func runJobs(parallel bool, jobs []func()) {
+	if !parallel {
+		for _, job := range jobs {
+			job()
+		}
+		return
+	}
+	var wg sync.WaitGroup
+	for _, job := range jobs {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			job()
+		}()
+	}
+	wg.Wait()
+}
+
 func printScannerError(scanner string, err error) {
 	var notFound interface{ Error() string }
 	if errors.As(err, &notFound) && strings.Contains(err.Error(), "not found") {
@@ -502,12 +556,15 @@ func printScannerError(scanner string, err error) {
 	}
 }
 
-func persistScan(path, scanners string, startedAt, endedAt time.Time, s *secrets.Result, a *sast.Result, t *trivy.Result, o *osv.Result) {
+// persistScan saves the scan, runs correlation and trend analysis, prints
+// the results, and returns the scored risks for JSON output (nil if the
+// history database is unavailable).
+func persistScan(path, scanners string, startedAt, endedAt time.Time, s *secrets.Result, a *sast.Result, t *trivy.Result, o *osv.Result) *correlate.Result {
 	cfg := loadConfig()
 	db, err := store.Open(cfg.Storage.DBPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "WARNING: Could not open scan history: %v\n", err)
-		return
+		return nil
 	}
 	defer db.Close()
 
@@ -515,7 +572,7 @@ func persistScan(path, scanners string, startedAt, endedAt time.Time, s *secrets
 	scanID, err := db.SaveScan(path, scanners, startedAt, endedAt, codeFindings)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "WARNING: Could not save scan: %v\n", err)
-		return
+		return nil
 	}
 
 	depFindings := buildDepFindingRecords(t, o)
@@ -529,15 +586,25 @@ func persistScan(path, scanners string, startedAt, endedAt time.Time, s *secrets
 	ignored, _ := db.IgnoredFingerprints()
 
 	// Run the correlation engine.
-	engine := correlate.New(db, nil)
+	engine := correlate.New(db, cfg.Correlation.Weights)
 	codeRecs, _ := db.CodeFindingsForScan(scanID)
 	depRecs, _ := db.DepFindingsForScan(scanID)
-	if err := engine.Run(correlate.Input{
-		ScanID:       scanID,
-		CodeFindings: codeRecs,
-		DepFindings:  depRecs,
-	}); err != nil {
+	root, _ := filepath.Abs(path)
+	input := correlate.Input{ScanID: scanID, Root: root, CodeFindings: codeRecs, DepFindings: depRecs}
+	if len(depRecs) > 0 {
+		// Only dependency findings need the import index.
+		if ix, err := imports.Build(root, globs.Compile(cfg.Scan.ExcludePaths)); err == nil {
+			input.Imports = ix
+		} else {
+			fmt.Fprintf(os.Stderr, "WARNING: could not index imports; dependency findings will not be linked to code: %v\n", err)
+		}
+	}
+	risks, err := engine.Run(input)
+	if err != nil {
 		fmt.Fprintf(os.Stderr, "WARNING: Correlation engine error: %v\n", err)
+	}
+	if !jsonOut {
+		output.PrintTopRisks(risks, noColor)
 	}
 
 	// Filter out ignored findings before recommendations and display.
@@ -546,7 +613,14 @@ func persistScan(path, scanners string, startedAt, endedAt time.Time, s *secrets
 
 	// Generate and display recommendations using only active findings.
 	correlationRecs, _ := db.CorrelationsForScan(scanID)
-	recs := recommend.Generate(correlationRecs, activeCode, activeDep)
+	// Stored paths stay absolute so ignore fingerprints are unique per
+	// project; recommendations show them relative to the scanned folder.
+	shown := make([]store.CodeFindingRecord, len(activeCode))
+	for i, f := range activeCode {
+		f.File = paths.Rel(root, f.File)
+		shown[i] = f
+	}
+	recs := recommend.Generate(correlationRecs, shown, activeDep)
 	if !jsonOut && len(recs) > 0 {
 		output.PrintRecommendations(recs, noColor)
 	}
@@ -560,7 +634,11 @@ func persistScan(path, scanners string, startedAt, endedAt time.Time, s *secrets
 	}
 
 	// Run trend analysis.
-	trendCfg := trends.DefaultConfig()
+	trendCfg := trends.Config{
+		LookbackScans:      cfg.Trends.LookbackScans,
+		MinScansRequired:   cfg.Trends.MinScansRequired,
+		RecurringThreshold: cfg.Trends.RecurringThreshold,
+	}
 	currentScan, _ := db.ScanByID(scanID)
 	currentScore := 0.0
 	if currentScan != nil {
@@ -573,6 +651,7 @@ func persistScan(path, scanners string, startedAt, endedAt time.Time, s *secrets
 	if verbose {
 		fmt.Printf("  Scan saved (ID: %d)\n", scanID)
 	}
+	return risks
 }
 
 func buildCodeFindingRecords(s *secrets.Result, a *sast.Result) []store.CodeFindingRecord {
@@ -619,6 +698,7 @@ func buildDepFindingRecords(t *trivy.Result, o *osv.Result) []store.DepFindingRe
 				Ecosystem:    f.Ecosystem,
 				FixedVersion: f.FixedVersion,
 				Description:  f.Description,
+				Manifest:     f.Manifest,
 			})
 		}
 	}
@@ -633,6 +713,7 @@ func buildDepFindingRecords(t *trivy.Result, o *osv.Result) []store.DepFindingRe
 				Ecosystem:    f.Ecosystem,
 				FixedVersion: f.FixedVersion,
 				Description:  f.Description,
+				Manifest:     f.Manifest,
 			})
 		}
 	}
@@ -650,7 +731,7 @@ func redactForStore(match, secret string) string {
 	return strings.ReplaceAll(match, secret, strings.Repeat("*", n))
 }
 
-func writeJSONOutput(path string, s *secrets.Result, a *sast.Result, t *trivy.Result, o *osv.Result) {
+func writeJSONOutput(path string, s *secrets.Result, a *sast.Result, t *trivy.Result, o *osv.Result, risks *correlate.Result) {
 	if scanOutput != "" {
 		f, err := os.Create(scanOutput)
 		if err != nil {
@@ -658,8 +739,8 @@ func writeJSONOutput(path string, s *secrets.Result, a *sast.Result, t *trivy.Re
 			return
 		}
 		defer f.Close()
-		output.WriteJSON(f, path, s, a, t, o)
+		output.WriteJSON(f, path, s, a, t, o, risks)
 		return
 	}
-	output.WriteJSON(os.Stdout, path, s, a, t, o)
+	output.WriteJSON(os.Stdout, path, s, a, t, o, risks)
 }

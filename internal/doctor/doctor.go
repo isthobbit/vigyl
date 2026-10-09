@@ -126,7 +126,6 @@ func Run(opts Options) []Check {
 	checks = append(checks, checkOffline(cfg, offlineMode, opts.Now)...)
 	checks = append(checks, cfgCheck)
 	checks = append(checks, checkHistory(cfg))
-	checks = append(checks, checkLegacyDir()...)
 	return checks
 }
 
@@ -391,18 +390,4 @@ func writableDir(dir string) error {
 		}
 		dir = parent
 	}
-}
-
-func checkLegacyDir() []Check {
-	leftovers, err := config.LegacyLeftovers()
-	if err != nil || len(leftovers) == 0 {
-		return nil
-	}
-	return []Check{{
-		Group:  GroupSetup,
-		Name:   "~/.kinga",
-		Status: Warn,
-		Detail: "old files not moved because ~/.vigyl already has them: " + strings.Join(leftovers, ", "),
-		Fix:    "compare them with ~/.vigyl, keep the one you want there, then delete ~/.kinga",
-	}}
 }

@@ -53,6 +53,10 @@ func isolate(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
 	t.Setenv("USERPROFILE", dir)
+	// Settings from the caller's environment would point at real data.
+	for _, key := range []string{"VIGYL_STORAGE_DB_PATH", "VIGYL_STORAGE_OFFLINE_DIR", "VIGYL_SCAN_OFFLINE"} {
+		t.Setenv(key, "")
+	}
 	// Keep the working directory free of a stray config.yaml.
 	wd, _ := os.Getwd()
 	if err := os.Chdir(dir); err != nil {
