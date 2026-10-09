@@ -147,6 +147,9 @@ func runScanAll(cmd *cobra.Command, args []string) error {
 			osvResult, osvErr = osv.Run(path, verbose, cfg.Scan.Timeout, cfg.Scan.ExcludePaths, setup.osv)
 		})
 	}
+	if !jsonOut && len(jobs) > 0 {
+		output.PrintScanProgress(activeScanners(gitleaksOK, semgrepOK, trivyOK, osvOK), cfg.Scan.Parallel, noColor)
+	}
 	runJobs(cfg.Scan.Parallel, jobs)
 
 	// Errors are reported after every scanner has finished, in a fixed order.
@@ -331,6 +334,9 @@ func runScanDeps(cmd *cobra.Command, args []string) error {
 		jobs = append(jobs, func() {
 			osvResult, osvErr = osv.Run(path, verbose, cfg.Scan.Timeout, cfg.Scan.ExcludePaths, setup.osv)
 		})
+	}
+	if !jsonOut && len(jobs) > 0 {
+		output.PrintScanProgress(activeScanners(false, false, trivyOK, osvOK), cfg.Scan.Parallel, noColor)
 	}
 	runJobs(cfg.Scan.Parallel, jobs)
 	if trivyErr != nil {

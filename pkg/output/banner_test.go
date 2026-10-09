@@ -93,3 +93,19 @@ func TestDepsToJSON_MergesAcrossScanners(t *testing.T) {
 		t.Errorf("unmerged findings should keep their own scanner: %+v / %+v", got[1], got[2])
 	}
 }
+
+func TestScanProgress(t *testing.T) {
+	for _, c := range []struct {
+		scanners []string
+		parallel bool
+		want     string
+	}{
+		{[]string{"secrets", "sast", "trivy", "osv"}, true, "   Running secrets, sast, trivy and osv at the same time…"},
+		{[]string{"trivy", "osv"}, false, "   Running trivy and osv one after another…"},
+		{[]string{"osv"}, true, "   Running osv…"},
+	} {
+		if got := scanProgress(c.scanners, c.parallel); got != c.want {
+			t.Errorf("scanProgress(%v, %v) = %q, want %q", c.scanners, c.parallel, got, c.want)
+		}
+	}
+}

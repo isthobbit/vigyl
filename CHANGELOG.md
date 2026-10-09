@@ -30,7 +30,8 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Trivy and OSV-Scanner at the same time, so a scan takes about as long as
   its slowest scanner. Set `scan.parallel: false` (or
   `VIGYL_SCAN_PARALLEL=false`) to run them one after another on machines
-  with little memory or CPU.
+  with little memory or CPU. In an interactive terminal they print which
+  scanners are running while they work.
 - Unimported vulnerable packages are labelled, never downgraded; unsupported
   ecosystems say "import use unknown".
 - Each correlation counts once per link, so repeated findings no longer inflate
@@ -63,6 +64,9 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `multiple_cves_in_same_package` counted one CVE reported by both scanners as
   two.
 - `correlation.weights` and `trends` settings in the config were ignored.
+- README: the exit codes table said dependency findings, and a scanner failing
+  during `scan all`, changed the exit code. Neither does; the table now says
+  what jensec does.
 
 ### Removed
 - The one-time move of scan history and config from the old data folder,

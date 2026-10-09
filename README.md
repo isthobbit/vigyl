@@ -362,6 +362,11 @@ Severity levels: `critical` → `high` → `medium` → `low` → `none`
 > `--fail-on critical` will *not* trigger on secrets findings. Use `--fail-on high`
 > (the default) or lower if you want the pipeline to fail when a secret is found.
 
+> Dependency vulnerabilities do not affect the exit code. `--fail-on` applies
+> to secrets and code (SAST) findings only, and `jensec scan deps` exits 0
+> whatever it finds. To fail a pipeline on CVEs, check `dependencies` in the
+> `--json` output.
+
 Output machine-readable JSON for downstream processing:
 
 ```bash
@@ -555,9 +560,13 @@ Dependency ecosystems: Go modules · PyPI · npm · Cargo · Maven · RubyGems �
 
 | Code | Meaning |
 |------|---------|
-| `0` | Clean — no findings at or above `--fail-on` threshold |
-| `1` | Findings found at or above threshold |
-| `2` | Scanner tool error (tool not installed or failed) |
+| `0` | No secrets or code findings at or above the `--fail-on` threshold |
+| `1` | Secrets or code findings at or above the threshold |
+| `2` | `scan secrets` or `scan sast`: the scanner is not installed or failed. `scan deps`: neither Trivy nor OSV-Scanner is available |
+
+`scan all` keeps going when one scanner fails or is missing: it prints a
+warning, reports what the other scanners found, and exits `0` or `1` from
+those results.
 
 ---
 

@@ -140,6 +140,31 @@ func wordWrap(text string, maxWidth int, indent string) string {
 	return result.String()
 }
 
+// PrintScanProgress says the scanners are running, so the wait before the
+// results appear does not look like a hang. Only an interactive terminal
+// gets it; logs and pipes go straight to the results.
+func PrintScanProgress(scanners []string, parallel, noColor bool) {
+	if !IsTerminal(os.Stdout) || len(scanners) == 0 {
+		return
+	}
+	fmt.Println(colorize(noColor, dim, scanProgress(scanners, parallel)))
+	fmt.Println()
+}
+
+func scanProgress(scanners []string, parallel bool) string {
+	list := scanners[0]
+	if n := len(scanners); n > 1 {
+		list = strings.Join(scanners[:n-1], ", ") + " and " + scanners[n-1]
+	}
+	how := "one after another"
+	if parallel && len(scanners) > 1 {
+		how = "at the same time"
+	} else if len(scanners) == 1 {
+		how = ""
+	}
+	return strings.TrimRight("   Running "+list+" "+how, " ") + "…"
+}
+
 // PrintScanHeader prints the scan banner.
 func PrintScanHeader(path string, scanners []string, noColor bool) {
 	if IsTerminal(os.Stdout) {
