@@ -10,6 +10,8 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- `SECURITY.md`: how to report a vulnerability privately, and what jensec
+  promises (no uploads, no network with `--offline`, redacted secrets).
 - `--fail-on-deps <severity>` (`scan.fail_on_deps`) fails `scan all` and
   `scan deps` on dependency vulnerabilities at or above a severity. Default
   `none`, so existing pipelines are unchanged. `--fail-on-deps-fixable`
@@ -31,6 +33,9 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `golang.org/x/text` upgraded to v0.41.0 and `golang.org/x/sys` to v0.44.0.
   Their known vulnerabilities were not reachable from jensec.
 - Building from source now needs Go 1.25 or later.
+- `jensec scan sast` never keeps the matched line of a Semgrep secret rule.
+  Semgrep only sends that line to logged-in users, but for them the secret
+  was printed in full and stored in scan history.
 
 ### Fixed
 - `--fail-on low` failed a scan that found nothing.

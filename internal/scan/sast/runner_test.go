@@ -135,3 +135,29 @@ func TestSeverityNormalisation(t *testing.T) {
 		}
 	}
 }
+
+// A secret rule's matched line is the secret, so it must never be kept, even
+// when a logged-in Semgrep sends it.
+func TestParseOutput_DropsSecretLines(t *testing.T) {
+	data := []byte(`{"results":[
+		{"check_id":"generic.secrets.security.detected-aws-access-key.x","path":"a.py","start":{"line":1},"end":{"line":1},
+		 "extra":{"message":"AWS key","severity":"ERROR","lines":"key = \"AKIAEXAMPLEEXAMPLE12\""}},
+		{"check_id":"python.lang.security.audit.eval-detected","path":"b.py","start":{"line":2},"end":{"line":2},
+		 "extra":{"message":"eval","severity":"WARNING","lines":"eval(x)"}},
+		{"check_id":"python.lang.other","path":"c.py","start":{"line":3},"end":{"line":3},
+		 "extra":{"message":"m","severity":"INFO","lines":"requires login"}}
+	]}`)
+	findings, err := sast.ParseOutputForTest(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := findings[0].Lines + findings[0].Extra.Lines; got != "" {
+		t.Errorf("secret line kept: %q", got)
+	}
+	if findings[1].Lines != "eval(x)" {
+		t.Errorf("ordinary code line lost: %q", findings[1].Lines)
+	}
+	if findings[2].Lines != "" {
+		t.Errorf("Semgrep's login placeholder should be dropped, got %q", findings[2].Lines)
+	}
+}

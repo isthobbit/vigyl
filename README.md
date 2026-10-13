@@ -625,6 +625,9 @@ Planned:
 
 Issues and PRs are welcome. Please open an issue before starting significant work so we can discuss approach. See [CONTRIBUTING.md](CONTRIBUTING.md) for full details.
 
+To report a security vulnerability, please do not open a public issue; see
+[SECURITY.md](SECURITY.md).
+
 ```bash
 git clone https://github.com/isthobbit/vigyl
 cd vigyl
