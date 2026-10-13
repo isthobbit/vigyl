@@ -17,7 +17,8 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `none`, so existing pipelines are unchanged. `--fail-on-deps-fixable`
   (`scan.fail_on_deps_fixable`) counts only vulnerabilities with a fixed
   version. Each vulnerability counts once across Trivy and OSV-Scanner, and
-  what failed is listed on stderr.
+  what failed is listed on stderr. If a dependency scanner fails while it is
+  set, the scan exits 2 instead of passing unchecked.
 
 ### Changed
 - Findings hidden with `jensec ignore` no longer count towards `--fail-on`;

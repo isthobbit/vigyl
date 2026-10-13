@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"errors"
 	"strings"
 	"testing"
 
@@ -133,4 +134,28 @@ func TestResolveThresholds(t *testing.T) {
 		t.Error("a misspelt --fail-on must be rejected")
 	}
 	failOn = ""
+}
+
+func TestDepsUnchecked(t *testing.T) {
+	on, off := depsGate{threshold: "critical"}, depsGate{threshold: "none"}
+	boom := errors.New("db download failed")
+	for _, c := range []struct {
+		name             string
+		g                depsGate
+		trivyRan, osvRan bool
+		trivyErr, osvErr error
+		want             string
+	}{
+		{"gate off ignores failures", off, true, true, boom, boom, ""},
+		{"both succeed", on, true, true, nil, nil, ""},
+		{"one scanner not installed is fine", on, false, true, nil, nil, ""},
+		{"trivy failed", on, true, true, boom, nil, "trivy failed"},
+		{"both failed", on, true, true, boom, boom, "trivy failed and osv-scanner failed"},
+		{"none available", on, false, false, nil, nil, "neither trivy nor osv-scanner is available"},
+	} {
+		got := depsUnchecked(c.g, c.trivyRan, c.osvRan, c.trivyErr, c.osvErr)
+		if (c.want == "") != (got == "") || !strings.Contains(got, c.want) {
+			t.Errorf("%s: got %q, want it to mention %q", c.name, got, c.want)
+		}
+	}
 }

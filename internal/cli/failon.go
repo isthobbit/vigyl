@@ -133,6 +133,31 @@ func depFailures(g depsGate, t *trivy.Result, o *osv.Result, ignored map[string]
 	return out
 }
 
+// depsUnchecked reports why --fail-on-deps could not be checked: a
+// dependency scanner that should have run failed, or none ran at all. A
+// security gate must not pass when it has not looked, so the scan then
+// exits 2 instead of 0. It returns "" when the gate is off or both scanners
+// that ran succeeded.
+func depsUnchecked(g depsGate, trivyRan, osvRan bool, trivyErr, osvErr error) string {
+	if g.threshold == "none" {
+		return ""
+	}
+	var problems []string
+	if trivyRan && trivyErr != nil {
+		problems = append(problems, "trivy failed")
+	}
+	if osvRan && osvErr != nil {
+		problems = append(problems, "osv-scanner failed")
+	}
+	if !trivyRan && !osvRan {
+		problems = append(problems, "neither trivy nor osv-scanner is available")
+	}
+	if len(problems) == 0 {
+		return ""
+	}
+	return fmt.Sprintf("Cannot check --fail-on-deps: %s, so dependency vulnerabilities may be missed.", strings.Join(problems, " and "))
+}
+
 // printDepFailures explains why dependency vulnerabilities failed the scan.
 func printDepFailures(w io.Writer, g depsGate, failures []output.JSONDepFinding) {
 	fixable := 0

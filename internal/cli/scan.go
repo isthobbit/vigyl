@@ -206,6 +206,10 @@ func runScanAll(cmd *cobra.Command, args []string) error {
 	if len(depFailed) > 0 {
 		printDepFailures(os.Stderr, gate, depFailed)
 	}
+	if msg := depsUnchecked(gate, trivyOK, osvOK, trivyErr, osvErr); msg != "" {
+		fmt.Fprintln(os.Stderr, msg)
+		os.Exit(2)
+	}
 	if codeFailed || len(depFailed) > 0 {
 		os.Exit(1)
 	}
@@ -381,8 +385,15 @@ func runScanDeps(cmd *cobra.Command, args []string) error {
 		writeJSONOutput(path, nil, nil, trivyResult, osvResult, risks)
 	}
 
-	if failed := depFailures(gate, trivyResult, osvResult, loadIgnored(cfg)); len(failed) > 0 {
+	failed := depFailures(gate, trivyResult, osvResult, loadIgnored(cfg))
+	if len(failed) > 0 {
 		printDepFailures(os.Stderr, gate, failed)
+	}
+	if msg := depsUnchecked(gate, trivyOK, osvOK, trivyErr, osvErr); msg != "" {
+		fmt.Fprintln(os.Stderr, msg)
+		os.Exit(2)
+	}
+	if len(failed) > 0 {
 		os.Exit(1)
 	}
 	return nil

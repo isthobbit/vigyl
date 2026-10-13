@@ -376,7 +376,8 @@ jensec scan all --fail-on high --fail-on-deps critical --fail-on-deps-fixable
 ```
 
 Each vulnerability counts once, even when Trivy and OSV-Scanner both report
-it. When the threshold is met, jensec lists what failed on stderr:
+it. If a dependency scanner fails, for example because Trivy cannot download
+its database, the scan exits `2` rather than passing unchecked. When the threshold is met, jensec lists what failed on stderr:
 
 ```
 Failing: 1 dependency vulnerability at or above CRITICAL with a fix available.
@@ -590,7 +591,7 @@ Dependency ecosystems: Go modules · PyPI · npm · Cargo · Maven · RubyGems �
 |------|---------|
 | `0` | Nothing at or above the `--fail-on` or `--fail-on-deps` thresholds (ignored findings do not count) |
 | `1` | A secret or code finding at or above `--fail-on`, or a dependency vulnerability at or above `--fail-on-deps` |
-| `2` | `scan secrets` or `scan sast`: the scanner is not installed or failed. `scan deps`: neither Trivy nor OSV-Scanner is available |
+| `2` | `scan secrets` or `scan sast`: the scanner is not installed or failed. `scan deps`: neither Trivy nor OSV-Scanner is available. With `--fail-on-deps`: a dependency scanner failed, so the threshold could not be checked |
 
 `scan all` keeps going when one scanner fails or is missing: it prints a
 warning, reports what the other scanners found, and exits `0` or `1` from
