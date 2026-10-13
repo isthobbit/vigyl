@@ -7,6 +7,44 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [Unreleased]
+
+### Added
+- `SECURITY.md`: how to report a vulnerability privately, and what jensec
+  promises (no uploads, no network with `--offline`, redacted secrets).
+- `--fail-on-deps <severity>` (`scan.fail_on_deps`) fails `scan all` and
+  `scan deps` on dependency vulnerabilities at or above a severity. Default
+  `none`, so existing pipelines are unchanged. `--fail-on-deps-fixable`
+  (`scan.fail_on_deps_fixable`) counts only vulnerabilities with a fixed
+  version. Each vulnerability counts once across Trivy and OSV-Scanner, and
+  what failed is listed on stderr. If a dependency scanner fails while it is
+  set, the scan exits 2 instead of passing unchecked.
+
+### Changed
+- Findings hidden with `jensec ignore` no longer count towards `--fail-on`;
+  previously an ignored secret still failed the scan.
+
+### Security
+- Release binaries are built with the newest Go 1.27 patch release. v0.4.0
+  and earlier were built with Go 1.22.12, which no longer receives security
+  fixes; `govulncheck` finds 43 standard library vulnerabilities reachable
+  from jensec's code in the v0.4.0 binary, including in `archive/tar` (used
+  by `jensec offline import`), `os/exec` and `crypto/tls`. It finds none in
+  this release.
+- `golang.org/x/text` upgraded to v0.41.0 and `golang.org/x/sys` to v0.44.0.
+  Their known vulnerabilities were not reachable from jensec.
+- Building from source now needs Go 1.25 or later.
+- `jensec scan sast` never keeps the matched line of a Semgrep secret rule.
+  Semgrep only sends that line to logged-in users, but for them the secret
+  was printed in full and stored in scan history.
+
+### Fixed
+- `--fail-on low` failed a scan that found nothing.
+- A misspelt `--fail-on` value, such as `hgh`, failed every scan instead of
+  being rejected.
+
+---
+
 ## [v0.4.0] — 2026-10-09
 
 ### Added

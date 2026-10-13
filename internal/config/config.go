@@ -44,6 +44,13 @@ type ScanConfig struct {
 	// FailOn is the minimum severity that causes a non-zero exit code.
 	// Values: critical | high | medium | low | none
 	FailOn string `mapstructure:"fail_on"`
+	// FailOnDeps is the minimum dependency vulnerability severity that
+	// causes a non-zero exit code. Default none: dependency findings never
+	// fail a scan unless asked to.
+	FailOnDeps string `mapstructure:"fail_on_deps"`
+	// FailOnDepsFixable limits FailOnDeps to vulnerabilities with a fixed
+	// version available.
+	FailOnDepsFixable bool `mapstructure:"fail_on_deps_fixable"`
 	// Timeout is the maximum time a single scanner is allowed to run.
 	Timeout time.Duration `mapstructure:"timeout"`
 	// ExcludePaths is a list of glob patterns to skip during scanning.
@@ -82,6 +89,7 @@ func Defaults() Config {
 		},
 		Scan: ScanConfig{
 			FailOn:       "high",
+			FailOnDeps:   "none",
 			Timeout:      5 * time.Minute,
 			ExcludePaths: []string{},
 			SemgrepRules: "auto",

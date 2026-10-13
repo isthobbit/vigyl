@@ -20,6 +20,10 @@ var ErrSemgrepNotFound = errors.New("semgrep not found — install it: https://s
 // "auto" lets Semgrep pick rules based on the detected language — good default for MVP.
 const DefaultRuleset = "auto"
 
+// SecretRulePrefix starts the IDs of Semgrep's secret-detection rules. They
+// find secrets, as gitleaks does, rather than code vulnerabilities.
+const SecretRulePrefix = "generic.secrets."
+
 // Options controls where semgrep gets its rules and whether it may use the network.
 type Options struct {
 	// Rules is the --config value: a registry ruleset ("auto", "p/default")
@@ -117,6 +121,14 @@ func parseOutput(data []byte) ([]Finding, error) {
 
 	findings := make([]Finding, 0, len(report.Results))
 	for _, r := range report.Results {
+		lines := strings.TrimSpace(r.Extra.Lines)
+		// A secret rule's matched line is the secret itself, and Semgrep does
+		// not say which part to redact, so it is never kept. Without a login
+		// Semgrep sends a placeholder instead of the line.
+		if strings.HasPrefix(r.CheckID, SecretRulePrefix) || lines == "requires login" {
+			lines = ""
+		}
+		r.Extra.Lines = lines
 		findings = append(findings, Finding{
 			RuleID:   r.CheckID,
 			Path:     r.Path,
@@ -125,7 +137,7 @@ func parseOutput(data []byte) ([]Finding, error) {
 			Extra:    r.Extra,
 			Message:  r.Extra.Message,
 			Severity: normaliseSeverity(r.Extra.Severity),
-			Lines:    strings.TrimSpace(r.Extra.Lines),
+			Lines:    lines,
 		})
 	}
 

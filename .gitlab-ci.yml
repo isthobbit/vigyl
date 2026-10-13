@@ -12,11 +12,11 @@ stages:
 
 variables:
   JENGSEC_FAIL_ON: "high"   # critical | high | medium | low | none
-  GO_VERSION: "1.22"
+  GO_VERSION: "1.27"
 
 security-scan:
   stage: security
-  image: golang:1.22-bookworm
+  image: golang:1.27-bookworm
 
   before_script:
     # Install Gitleaks

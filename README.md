@@ -1,9 +1,9 @@
-# jensec · by VIGYL
+# jensec · by vigyl
 
 ![Build](https://github.com/isthobbit/vigyl/actions/workflows/jensec.yml/badge.svg)
 ![Release](https://img.shields.io/github/v/release/isthobbit/vigyl)
 ![License](https://img.shields.io/github/license/isthobbit/vigyl)
-![Go](https://img.shields.io/badge/go-1.22+-blue)
+![Go](https://img.shields.io/badge/go-1.25+-blue)
 
 ```
   .-"""-.
@@ -19,6 +19,9 @@
 ```
 
 jensec is an open-source DevSecOps CLI tool that detects leaked secrets, code vulnerabilities (SAST), and dependency CVEs — all from your terminal, with no cloud account and no sign-up. Your source code is never uploaded, and with `--offline` jensec makes no network calls at all, so it works on air-gapped machines.
+
+**jensec** is the command-line tool; **vigyl** is the project and repository it
+lives in (Go module `github.com/isthobbit/vigyl`).
 
 Powered by [Gitleaks](https://github.com/gitleaks/gitleaks) (secrets), [Semgrep](https://semgrep.dev) (SAST), [Trivy](https://aquasecurity.github.io/trivy) and [OSV-Scanner](https://google.github.io/osv-scanner) (dependencies), with a correlation engine that links findings across all four scanners into a unified risk score. See [a scan of OWASP NodeGoat](#example-owasp-nodegoat) for what that adds over running the scanners yourself.
 
@@ -77,7 +80,7 @@ Download `jensec_windows_amd64.zip` from the [Releases page](https://github.com/
 go install github.com/isthobbit/vigyl/cmd/jensec@latest
 ```
 
-Requires Go 1.22+. The binary is placed in `$GOPATH/bin` (usually `~/go/bin`).
+Requires Go 1.25+. The binary is placed in `$GOPATH/bin` (usually `~/go/bin`).
 
 ---
 
@@ -362,10 +365,37 @@ Severity levels: `critical` → `high` → `medium` → `low` → `none`
 > `--fail-on critical` will *not* trigger on secrets findings. Use `--fail-on high`
 > (the default) or lower if you want the pipeline to fail when a secret is found.
 
-> Dependency vulnerabilities do not affect the exit code. `--fail-on` applies
-> to secrets and code (SAST) findings only, and `jensec scan deps` exits 0
-> whatever it finds. To fail a pipeline on CVEs, check `dependencies` in the
-> `--json` output.
+### Failing on dependency vulnerabilities
+
+`--fail-on` applies to secrets and code (SAST) findings. Dependency
+vulnerabilities have their own threshold, `--fail-on-deps`, which is `none`
+by default, so they never fail a scan unless you ask. Nearly every real
+project has some HIGH vulnerability deep in its dependencies, so a separate,
+usually stricter, threshold keeps the check usable:
+
+```bash
+# Fail on CRITICAL dependency vulnerabilities that have a fixed version
+jensec scan all --fail-on high --fail-on-deps critical --fail-on-deps-fixable
+```
+
+Each vulnerability counts once, even when Trivy and OSV-Scanner both report
+it. If a dependency scanner fails, for example because Trivy cannot download
+its database, the scan exits `2` rather than passing unchecked. When the threshold is met, jensec lists what failed on stderr:
+
+```
+Failing: 1 dependency vulnerability at or above CRITICAL with a fix available.
+  CRITICAL  minimist@1.2.0  CVE-2021-44906  fix: 1.2.6
+```
+
+### Accepting a known risk
+
+`jensec ignore <finding-id>` hides a finding from scan output and
+recommendations, and it no longer counts towards `--fail-on` or
+`--fail-on-deps`. Ignoring either scanner's report of a dependency
+vulnerability ignores that vulnerability. `jensec ignore list` shows what is
+ignored and why.
+
+### JSON output
 
 Output machine-readable JSON for downstream processing:
 
@@ -381,7 +411,7 @@ jensec scan all --json --output results.json
   run: go build -o /usr/local/bin/jensec ./cmd/jensec
 
 - name: Security scan
-  run: jensec scan all --fail-on high --json --output security-report.json
+  run: jensec scan all --fail-on high --fail-on-deps critical --fail-on-deps-fixable --json --output security-report.json
 ```
 
 The repository ships with a ready-to-use workflow in `.github/workflows/jensec.yml` that runs on every push and pull request to `main`, `master`, or `develop`.
@@ -416,6 +446,8 @@ Create `~/.vigyl/config.yaml` to set persistent defaults:
 ```yaml
 scan:
   fail_on: high             # critical | high | medium | low | none
+  fail_on_deps: none        # same values, for dependency vulnerabilities
+  fail_on_deps_fixable: false  # true = only vulnerabilities with a fixed version count
   timeout: 5m
   semgrep_rules: auto       # or a custom ruleset path / registry ID
   offline: false            # true = always scan with local data only (same as --offline)
@@ -560,9 +592,9 @@ Dependency ecosystems: Go modules · PyPI · npm · Cargo · Maven · RubyGems �
 
 | Code | Meaning |
 |------|---------|
-| `0` | No secrets or code findings at or above the `--fail-on` threshold |
-| `1` | Secrets or code findings at or above the threshold |
-| `2` | `scan secrets` or `scan sast`: the scanner is not installed or failed. `scan deps`: neither Trivy nor OSV-Scanner is available |
+| `0` | Nothing at or above the `--fail-on` or `--fail-on-deps` thresholds (ignored findings do not count) |
+| `1` | A secret or code finding at or above `--fail-on`, or a dependency vulnerability at or above `--fail-on-deps` |
+| `2` | `scan secrets` or `scan sast`: the scanner is not installed or failed. `scan deps`: neither Trivy nor OSV-Scanner is available. With `--fail-on-deps`: a dependency scanner failed, so the threshold could not be checked |
 
 `scan all` keeps going when one scanner fails or is missing: it prints a
 warning, reports what the other scanners found, and exits `0` or `1` from
@@ -581,7 +613,6 @@ Released (see [CHANGELOG.md](CHANGELOG.md) for details):
 
 Planned:
 
-- Option to fail a pipeline on dependency vulnerabilities (they do not affect the exit code today)
 - Reachability: whether a vulnerable package's affected functions are actually called
 - SARIF output for GitHub Code Scanning
 - Pre-commit hook installer
@@ -597,6 +628,9 @@ Planned:
 ## Contributing
 
 Issues and PRs are welcome. Please open an issue before starting significant work so we can discuss approach. See [CONTRIBUTING.md](CONTRIBUTING.md) for full details.
+
+To report a security vulnerability, please do not open a public issue; see
+[SECURITY.md](SECURITY.md).
 
 ```bash
 git clone https://github.com/isthobbit/vigyl

@@ -205,3 +205,28 @@ func TestLoad_ParallelDefaultAndEnv(t *testing.T) {
 		t.Error("VIGYL_SCAN_PARALLEL=false ignored")
 	}
 }
+
+func TestLoad_FailOnDeps(t *testing.T) {
+	isolateHome(t)
+	cfg, err := config.Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Scan.FailOnDeps != "none" || cfg.Scan.FailOnDepsFixable {
+		t.Errorf("dependency findings must not fail scans by default: %q, %v", cfg.Scan.FailOnDeps, cfg.Scan.FailOnDepsFixable)
+	}
+
+	t.Setenv("VIGYL_SCAN_FAIL_ON_DEPS", "critical")
+	t.Setenv("VIGYL_SCAN_FAIL_ON_DEPS_FIXABLE", "true")
+	if cfg, err = config.Load(""); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Scan.FailOnDeps != "critical" || !cfg.Scan.FailOnDepsFixable {
+		t.Errorf("env vars ignored: %q, %v", cfg.Scan.FailOnDeps, cfg.Scan.FailOnDepsFixable)
+	}
+
+	t.Setenv("VIGYL_SCAN_FAIL_ON_DEPS", "banana")
+	if _, err := config.Load(""); err == nil {
+		t.Error("expected an error for an invalid fail_on_deps value")
+	}
+}

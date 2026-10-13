@@ -8,11 +8,6 @@ import (
 	"github.com/isthobbit/vigyl/internal/scan/secrets"
 )
 
-// semgrepSecretRules is the prefix of Semgrep's secret-detection rules. They
-// find the same kind of thing gitleaks does, so they are not code
-// vulnerabilities.
-const semgrepSecretRules = "generic.secrets."
-
 // moveSemgrepSecrets takes Semgrep's secret findings out of the SAST results
 // and adds them to the secrets results. A secret gitleaks also found on the
 // same line is dropped, so one secret is reported once. Without this, a
@@ -42,7 +37,7 @@ func moveSemgrepSecrets(s *secrets.Result, a *sast.Result) *secrets.Result {
 
 	kept := a.Findings[:0:0]
 	for _, f := range a.Findings {
-		if !strings.HasPrefix(f.RuleID, semgrepSecretRules) {
+		if !strings.HasPrefix(f.RuleID, sast.SecretRulePrefix) {
 			kept = append(kept, f)
 			continue
 		}
