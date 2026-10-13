@@ -1,4 +1,4 @@
-# jensec · by VIGYL
+# jensec · by vigyl
 
 ![Build](https://github.com/isthobbit/vigyl/actions/workflows/jensec.yml/badge.svg)
 ![Release](https://img.shields.io/github/v/release/isthobbit/vigyl)
@@ -19,6 +19,9 @@
 ```
 
 jensec is an open-source DevSecOps CLI tool that detects leaked secrets, code vulnerabilities (SAST), and dependency CVEs — all from your terminal, with no cloud account and no sign-up. Your source code is never uploaded, and with `--offline` jensec makes no network calls at all, so it works on air-gapped machines.
+
+**jensec** is the command-line tool; **vigyl** is the project and repository it
+lives in (Go module `github.com/isthobbit/vigyl`).
 
 Powered by [Gitleaks](https://github.com/gitleaks/gitleaks) (secrets), [Semgrep](https://semgrep.dev) (SAST), [Trivy](https://aquasecurity.github.io/trivy) and [OSV-Scanner](https://google.github.io/osv-scanner) (dependencies), with a correlation engine that links findings across all four scanners into a unified risk score. See [a scan of OWASP NodeGoat](#example-owasp-nodegoat) for what that adds over running the scanners yourself.
 
