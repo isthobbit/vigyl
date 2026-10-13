@@ -43,6 +43,10 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - A misspelt `--fail-on` value, such as `hgh`, failed every scan instead of
   being rejected.
 
+### Removed
+- The unused `auth.license_key` setting (`VIGYL_AUTH_LICENSE_KEY`). Nothing read
+  it. Config files that still set it load as before.
+
 ---
 
 ## [v0.4.0] — 2026-10-09
