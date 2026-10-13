@@ -24,7 +24,7 @@ First off — thank you for taking the time to contribute. Every issue, idea, an
 ## Development setup
 
 **Requirements**
-- Go 1.22+
+- Go 1.25+
 - [Gitleaks](https://github.com/gitleaks/gitleaks#installing)
 - [Semgrep](https://semgrep.dev/docs/getting-started)
 

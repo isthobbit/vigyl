@@ -19,7 +19,10 @@ jobs:
 
       - uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
         with:
-          go-version: "1.22"
+          # Releases and CI build with the newest Go 1.27 patch release, which
+          # carries the latest standard library security fixes.
+          go-version: "1.27"
+          check-latest: true
 
       - name: Run goreleaser
         uses: goreleaser/goreleaser-action@90a3faa9d0182683851fbfa97ca1a2cb983bfca3 # v6.2.1

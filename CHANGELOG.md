@@ -21,6 +21,17 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Findings hidden with `jensec ignore` no longer count towards `--fail-on`;
   previously an ignored secret still failed the scan.
 
+### Security
+- Release binaries are built with the newest Go 1.27 patch release. v0.4.0
+  and earlier were built with Go 1.22.12, which no longer receives security
+  fixes; `govulncheck` finds 43 standard library vulnerabilities reachable
+  from jensec's code in the v0.4.0 binary, including in `archive/tar` (used
+  by `jensec offline import`), `os/exec` and `crypto/tls`. It finds none in
+  this release.
+- `golang.org/x/text` upgraded to v0.41.0 and `golang.org/x/sys` to v0.44.0.
+  Their known vulnerabilities were not reachable from jensec.
+- Building from source now needs Go 1.25 or later.
+
 ### Fixed
 - `--fail-on low` failed a scan that found nothing.
 - A misspelt `--fail-on` value, such as `hgh`, failed every scan instead of

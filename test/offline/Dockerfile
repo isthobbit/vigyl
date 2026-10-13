@@ -3,7 +3,7 @@
 #
 #   docker build -f test/offline/Dockerfile -t jensec-offline .
 
-FROM golang:1.22 AS build
+FROM golang:1.27 AS build
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download

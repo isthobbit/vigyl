@@ -25,7 +25,10 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
         with:
-          go-version: "1.22"
+          # Releases and CI build with the newest Go 1.27 patch release, which
+          # carries the latest standard library security fixes.
+          go-version: "1.27"
+          check-latest: true
 
       # ── Install dependencies ─────────────────────────────────────────────────
 

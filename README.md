@@ -3,7 +3,7 @@
 ![Build](https://github.com/isthobbit/vigyl/actions/workflows/jensec.yml/badge.svg)
 ![Release](https://img.shields.io/github/v/release/isthobbit/vigyl)
 ![License](https://img.shields.io/github/license/isthobbit/vigyl)
-![Go](https://img.shields.io/badge/go-1.22+-blue)
+![Go](https://img.shields.io/badge/go-1.25+-blue)
 
 ```
   .-"""-.
@@ -77,7 +77,7 @@ Download `jensec_windows_amd64.zip` from the [Releases page](https://github.com/
 go install github.com/isthobbit/vigyl/cmd/jensec@latest
 ```
 
-Requires Go 1.22+. The binary is placed in `$GOPATH/bin` (usually `~/go/bin`).
+Requires Go 1.25+. The binary is placed in `$GOPATH/bin` (usually `~/go/bin`).
 
 ---
 
