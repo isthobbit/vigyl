@@ -230,3 +230,19 @@ func TestLoad_FailOnDeps(t *testing.T) {
 		t.Error("expected an error for an invalid fail_on_deps value")
 	}
 }
+
+// auth.license_key was removed; config files written before that must still load.
+func TestLoad_IgnoresRemovedLicenseKey(t *testing.T) {
+	isolateHome(t)
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(cfgPath, []byte("auth:\n  license_key: abc\nscan:\n  fail_on: critical\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatalf("old config with auth.license_key failed to load: %v", err)
+	}
+	if cfg.Scan.FailOn != "critical" {
+		t.Errorf("other settings in the file were not applied: fail_on=%q", cfg.Scan.FailOn)
+	}
+}

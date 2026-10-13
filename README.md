@@ -610,6 +610,7 @@ Released (see [CHANGELOG.md](CHANGELOG.md) for details):
 - **v0.2** — Dependency scanning (Trivy + OSV), correlation engine, risk scoring with named bands (LOW → SEVERE), structured recommendations, trend analysis; v0.2.1 added `jensec ignore`
 - **v0.3** — Offline and air-gapped scanning (`--offline`, `jensec offline`), `jensec doctor`, scan history moved to `~/.vigyl`
 - **v0.4** — Vulnerable dependencies linked to the files that import them, "Top risks" with the reasons behind each score, one finding per vulnerability across Trivy and OSV-Scanner, scanners run in parallel
+- **v0.5** — `--fail-on-deps` to fail a pipeline on dependency vulnerabilities, ignored findings no longer fail scans, builds on Go 1.27 with no known Go vulnerabilities, `SECURITY.md`
 
 Planned:
 

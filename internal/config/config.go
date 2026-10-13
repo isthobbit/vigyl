@@ -8,7 +8,6 @@ type Config struct {
 	Output      OutputConfig      `mapstructure:"output"`
 	Scan        ScanConfig        `mapstructure:"scan"`
 	Storage     StorageConfig     `mapstructure:"storage"`
-	Auth        AuthConfig        `mapstructure:"auth"`
 	Correlation CorrelationConfig `mapstructure:"correlation"`
 	Trends      TrendsConfig      `mapstructure:"trends"`
 }
@@ -72,11 +71,6 @@ type StorageConfig struct {
 	MaxHistory int `mapstructure:"max_history"`
 	// OfflineDir overrides the default ~/.vigyl/offline data location.
 	OfflineDir string `mapstructure:"offline_dir"`
-}
-
-type AuthConfig struct {
-	// LicenseKey is used for future commercial features.
-	LicenseKey string `mapstructure:"license_key"`
 }
 
 // Defaults returns a Config populated with safe production defaults.

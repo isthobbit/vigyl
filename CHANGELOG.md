@@ -7,7 +7,7 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
-## [Unreleased]
+## [v0.5.0] — 2026-10-13
 
 ### Added
 - `SECURITY.md`: how to report a vulnerability privately, and what jensec
@@ -42,6 +42,10 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `--fail-on low` failed a scan that found nothing.
 - A misspelt `--fail-on` value, such as `hgh`, failed every scan instead of
   being rejected.
+
+### Removed
+- The unused `auth.license_key` setting (`VIGYL_AUTH_LICENSE_KEY`). Nothing read
+  it. Config files that still set it load as before.
 
 ---
 
